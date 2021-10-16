@@ -1,8 +1,8 @@
-from collections import namedtuple
+from typing import NamedTuple
 
 """
 BoundingBox acts as a tuple.
 Usage:
     Examples: `bb[0:1]` or `*bb`
 """
-BoundingBox = namedtuple('BoundingBox', ['x', 'y', 'h', 'w'])
+BoundingBox = NamedTuple('BoundingBox', x=int, y=int, w=int, h=int)

@@ -1,5 +1,7 @@
-from detection.detectors import YoloV4
+from .detector import Detector
+from .boundingbox import BoundingBox
 
 
-def create_detector():
+def create_detector() -> Detector:
+    from .detectors import YoloV4
     return YoloV4()
