@@ -1,10 +1,7 @@
 import warnings
 from typing import List, NamedTuple, Tuple
-import cv2
 import numpy as np
 from scipy import special
-import colorsys
-import random
 
 from .backend import Backend
 from .preprocessor import OperationInfo, Preprocessor
@@ -42,7 +39,7 @@ def Bbox2BoundingBox(bbox: Bbox) -> BoundingBox:
 
 
 def is_person(bbox: Bbox) -> bool:
-    if bbox.probability > 0.5 and Coco.class_names.get(int(bbox.category)) == 'person':
+    if Coco.class_names.get(int(bbox.category)) == 'person':
         return True
     else:
         return False
@@ -72,7 +69,7 @@ class YoloV4(Detector):
 
     input_shape = (1, 416, 416, 3)  # (batch_size, height, width, channels)
     strides = np.array([8, 16, 32])
-    x_y_scale = [1.2, 1.1, 1.05]  #
+    x_y_scale = [1.2, 1.1, 1.05]  # ?
 
     anchors = get_anchors('files/yolov4/yolov4_anchors.txt')
     onnx_file_name = 'files/yolov4/yolov4.onnx'
@@ -85,7 +82,7 @@ class YoloV4(Detector):
 
         image, info = self.__preprocess(image)
         outputs = self.__inference(image)
-        bounding_boxes = self.__postprocess(outputs, info, image)  # TODO remove image
+        bounding_boxes = self.__postprocess(outputs, info)
 
         return bounding_boxes
 
@@ -109,20 +106,21 @@ class YoloV4(Detector):
         # Output has:
         # 3 'heatmaps' at resolution 52x52, 26x26 and 13x13
         # Each heatmap contains 85 values for each of 3 anchors(?)
-        # These 85 values are: center_x, center_y, h, w, object confidence, 80 * [class] confidence
+        # These 85 values are: center_x, center_y, w, h, object confidence, 80 * [class] confidence
+        # Documentation says "(x, y, h, w [, ...])", but it's actually (center_x, center_y, w, h, ...)
         return outputs
 
     @classmethod
-    def __postprocess(cls, outputs, info: OperationInfo, image) -> List[BoundingBox]:
+    def __postprocess(cls, outputs, info: OperationInfo) -> List[BoundingBox]:
         detections = PostProcessor.generate_detections(outputs, YoloV4.anchors, YoloV4.strides, YoloV4.x_y_scale)
         bboxes = PostProcessor.generate_and_adjust_bboxes(detections, 0.25, info)
         bboxes = PostProcessor.nms(bboxes, 0.213, method='nms')
 
-        # Show outputs
-        image = cls.draw_bbox(image, bboxes)
-        cv2.imshow('img', image)
-        cv2.waitKey(10_000)
-        cv2.destroyWindow('img')
+        # # Show outputs
+        # image = cls.draw_bbox(orig_image, bboxes)
+        # cv2.imshow('img', image)
+        # cv2.waitKey(10_000)
+        # cv2.destroyWindow('img')
 
         # Convert outputs
         bounding_boxes = []
@@ -132,41 +130,46 @@ class YoloV4(Detector):
                 bounding_boxes.append(Bbox2BoundingBox(b))
         return bounding_boxes
 
-    @staticmethod
-    def draw_bbox(image, bboxes, show_label=True):
-        """
-            bboxes: [x_min, y_min, x_max, y_max, probability, cls_id] format coordinates.
-            """
-
-        image = image.copy()
-        num_classes = len(Coco.class_names)
-        image_h, image_w, _ = image.shape
-        hsv_tuples = [(1.0 * x / num_classes, 1., 1.) for x in range(num_classes)]
-        colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
-        colors = list(map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)), colors))
-        font_scale = 0.5
-
-        random.seed(0)
-        random.shuffle(colors)
-        random.seed(None)
-
-        for i, bbox in enumerate(bboxes):
-            coords = np.array(bbox[:4], dtype=np.int32)
-            score = bbox[4]
-            class_ind = int(bbox[5])
-            bbox_color = colors[class_ind]
-            bbox_thick = int(0.6 * (image_h + image_w) / 600)
-            c1, c2 = (coords[0], coords[1]), (coords[2], coords[3])
-            cv2.rectangle(image, c1, c2, bbox_color, bbox_thick)
-
-            if show_label:
-                bbox_mess = '%s: %.2f' % (Coco.class_names[class_ind], score)
-                t_size = cv2.getTextSize(bbox_mess, 0, font_scale, thickness=bbox_thick // 2)[0]
-                cv2.rectangle(image, c1, (c1[0] + t_size[0], c1[1] - t_size[1] - 3), bbox_color, -1)
-                cv2.putText(image, bbox_mess, (c1[0], c1[1] - 2), cv2.FONT_HERSHEY_SIMPLEX,
-                            font_scale, (0, 0, 0), bbox_thick // 2, lineType=cv2.LINE_AA)
-
-        return image
+    # @staticmethod
+    # def draw_bbox(image, bboxes, show_label=False):
+    #     """
+    #
+    #
+    #     :param image: The original image
+    #     :param bboxes: [x_min, y_min, x_max, y_max, probability, cls_id] format coordinates, in original coordinates
+    #     :param show_label:
+    #     :return:
+    #     """
+    #
+    #     image = image.copy()
+    #     num_classes = len(Coco.class_names)
+    #     image_h, image_w, _ = image.shape
+    #     hsv_tuples = [(1.0 * x / num_classes, 1., 1.) for x in range(num_classes)]
+    #     colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
+    #     colors = list(map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)), colors))
+    #     font_scale = 0.5
+    #
+    #     random.seed(0)
+    #     random.shuffle(colors)
+    #     random.seed(None)
+    #
+    #     for i, bbox in enumerate(bboxes):
+    #         coords = np.array(bbox[:4], dtype=np.int32)
+    #         score = bbox[4]
+    #         class_ind = int(bbox[5])
+    #         bbox_color = colors[class_ind]
+    #         bbox_thick = int(0.6 * (image_h + image_w) / 600)
+    #         c1, c2 = (coords[0], coords[1]), (coords[2], coords[3])
+    #         cv2.rectangle(image, c1, c2, bbox_color, bbox_thick)
+    #
+    #         if show_label:
+    #             bbox_mess = '%s: %.2f' % (Coco.class_names[class_ind], score)
+    #             t_size = cv2.getTextSize(bbox_mess, 0, font_scale, thickness=bbox_thick // 2)[0]
+    #             cv2.rectangle(image, c1, (c1[0] + t_size[0], c1[1] - t_size[1] - 3), bbox_color, -1)
+    #             cv2.putText(image, bbox_mess, (c1[0], c1[1] - 2), cv2.FONT_HERSHEY_SIMPLEX,
+    #                         font_scale, (0, 0, 0), bbox_thick // 2, lineType=cv2.LINE_AA)
+    #
+    #     return image
 
 
 class PostProcessor:
@@ -179,7 +182,7 @@ class PostProcessor:
             # heatmaps contain: Batch x H x W x Anchor x Value
             # Values are: center_x, center_y, h, w, object confidence, 80 x class confidence
             heatmap_of_x_y = heatmap[:, :, :, :, 0:2]
-            heatmap_of_h_w = heatmap[:, :, :, :, 2:4]
+            heatmap_of_w_h = heatmap[:, :, :, :, 2:4]
 
             xy_grid = np.meshgrid(np.arange(heatmap_side_length), np.arange(heatmap_side_length))
             xy_grid = np.expand_dims(np.stack(xy_grid, axis=-1), axis=2)
@@ -191,14 +194,14 @@ class PostProcessor:
 
             predictions_x_y = ((special.expit(heatmap_of_x_y) * x_y_scale[i]) - 0.5 *
                                (x_y_scale[i] - 1) + xy_grid) * strides[i]
-            predictions_h_w = (np.exp(heatmap_of_h_w) * anchors[i])
+            predictions_w_h = (np.exp(heatmap_of_w_h) * anchors[i])
 
             # Put x, y, h, w back into heatmap
-            heatmap[:, :, :, :, 0:4] = np.concatenate([predictions_x_y, predictions_h_w], axis=-1)
+            heatmap[:, :, :, :, 0:4] = np.concatenate([predictions_x_y, predictions_w_h], axis=-1)
 
         # detections is output, but
         # each heatmap is reshaped into a list of values with length of 85
-        # These 85 values are: center_x, center_y, h, w, object confidence, 80 * [class] confidence
+        # These 85 values are: center_x, center_y, w, h, object confidence, 80 * [class] confidence
         detections = [np.reshape(heatmap, (-1, heatmap.shape[-1])) for heatmap in output]
         detections = np.concatenate(detections, axis=0)
         # detections is the array of every detection with shape -1, 85
@@ -209,13 +212,14 @@ class PostProcessor:
         """rework boxes, work with confidence, remove boundary boxes with a low detection probability"""
         valid_scale = [0, np.inf]
 
-        predicted_x_y_h_ws = detections[:, 0:4]  # (center_x, center_y, h, w)'s
+        predicted_x_y_w_hs = detections[:, 0:4]  # (center_x, center_y, w, h)'s
         predicted_objectness_ = detections[:, 4]  # objectness'
         predicted_class_confidences = detections[:, 5:]
 
-        # Swap height and width
-        predicted_x_y_w_hs = predicted_x_y_h_ws.copy()
-        predicted_x_y_w_hs[:, [2, 3]] = predicted_x_y_w_hs[:, [3, 2]]
+        # Swap height and width - documentation is wrong, output is x, y, w, h
+        # predicted_x_y_w_hs = predicted_x_y_h_ws.copy()
+        # warnings.warn('Not swapping')
+        # predicted_x_y_w_hs[:, [2, 3]] = predicted_x_y_w_hs[:, [3, 2]]
 
         # (center_x, center_y, w, h) --> (x_min, y_min, x_max, y_max)
         predicted_x_y_s = predicted_x_y_w_hs[:, :2]
@@ -230,7 +234,6 @@ class PostProcessor:
         predicted_coords_transformed[:, 0::2] = (predicted_coords[:, 0::2] - pad_each_x) / scale
         # Update y coordinates
         predicted_coords_transformed[:, 1::2] = (predicted_coords[:, 1::2] - pad_each_y) / scale
-        # TODO is padding correct?
 
         # clip some boxes that are out of range
         # TODO use input shape
@@ -258,8 +261,11 @@ class PostProcessor:
         mask = np.logical_and(scale_mask, score_mask)
         coords, scores, classes = coords[mask], scores[mask], classes[mask]
 
-        bboxes = np.concatenate([coords, scores[:, np.newaxis], classes[:, np.newaxis]], axis=-1)
-        return bboxes
+        data = np.concatenate([coords, scores[:, np.newaxis], classes[:, np.newaxis]], axis=-1)
+        # bboxes = []
+        # for row in data:
+        #     bboxes.append(Bbox(*row))
+        return data
 
     @staticmethod
     def calculate_iou(box1, box2):
@@ -281,7 +287,7 @@ class PostProcessor:
         return iou
 
     @staticmethod
-    def nms(bboxes, iou_threshold, sigma=0.3, method='nms'):
+    def nms(bboxes: np.ndarray, iou_threshold, sigma=0.3, method='nms'):
         """
         :param method:
         :param sigma:
