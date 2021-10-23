@@ -4,15 +4,10 @@ import numpy as np
 from scipy import special
 import colorsys
 import random
-import onnxruntime
 
+from .backend import Backend
 from ..boundingbox import BoundingBox
 from ..detector import Detector
-
-# Original source of code:
-# """https://github.com/onnx/models/blob/master/vision/
-#       object_detection_segmentation/yolov4/dependencies/inference.ipynb"""
-# Commit 857a343
 
 Bbox = NamedTuple('Bbox', x1=float, y1=float, x2=float, y2=float, probability=float, category=int)
 OperationInfo = NamedTuple('OperationInfo', scale=float, diff_width=float, diff_height=float)
@@ -58,26 +53,28 @@ def get_anchors(anchors_path):
     anchors = np.array(anchors.split(','), dtype=np.float32)
     return anchors.reshape((3, 3, 2))
 
+# on cpu 1-3 FPS, on gpu 8-12 FPS
+class YoloV4(Detector):
+    """
+    YoloV4 detector in ONNX. Achievable results are mAP50 of 52.32 on the COCO 2017 dataset and FPS of 41.7 on Tesla 100
 
-class YoloV4(Detector):  # noqa
+    Original source of code: Commit 857a343
+    "https://github.com/onnx/models/blob/master/vision/object_detection_segmentation/yolov4/dependencies/inference.ipynb"
+    Dependencies at:
+    "https://github.com/onnx/models/tree/master/vision/object_detection_segmentation/yolov4/dependencies"
+    """
+
     input_shape = (1, 416, 416, 3)  # (batch_size, height, width, channels)
     strides = np.array([8, 16, 32])
     x_y_scale = [1.2, 1.1, 1.05]
 
     anchors = get_anchors('files/yolov4/yolov4_anchors.txt')
+    onnx_file_name = 'files/yolov4/yolov4.onnx'
 
     def __init__(self):
         self.__image: Optional[np.ndarray] = None
         self.__info: Optional[OperationInfo] = None
-        # Note from original code:
-        # "Start from ORT 1.10, ORT requires explicitly setting the providers parameter
-        # if you want to use execution providers
-        # other than the default CPU provider (as opposed to the previous behavior of providers
-        # getting set/registered by default
-        # based on the build flags) when instantiating InferenceSession.
-        # For example, if NVIDIA GPU is available and ORT Python package is built with CUDA, then call API as following:
-        # rt.InferenceSession(path/to/model, providers=['CUDAExecutionProvider'])"
-        self.__sess = onnxruntime.InferenceSession('files/yolov4/yolov4.onnx')
+        self.__sess = Backend.get_inference_session(self.onnx_file_name)
 
     def detect(self, image: np.array) -> List[BoundingBox]:
         self.__image = image.copy()
@@ -102,11 +99,11 @@ class YoloV4(Detector):  # noqa
         output_names = list(map(lambda out: out.name, outputs))
         input_name = self.__sess.get_inputs()[0].name
 
-        image = self.__image.reshape(YoloV4.input_shape)
+        image = self.__image.reshape(self.input_shape)
         assert image.dtype == np.float32, f'{image.dtype} != {np.float32}'
 
         output = self.__sess.run(output_names, {input_name: image})
-        print("Output shape:", list(map(lambda detection: detection.shape, output)))
+        # print("Output shape:", list(map(lambda detection: detection.shape, output)))
 
         # Output has:
         # 3 'heatmaps' at resolution 52x52, 26x26 and 13x13
@@ -214,8 +211,8 @@ class PostProcessor:
             # A matrix with sides heatmap_side, containing triples of two numbers
             # going from (0 0)(0 0)(0 0) to (51 51)(51 51)(51 51)
 
-            predictions_x_y = ((special.expit(heatmap_of_x_y) * x_y_scale[i]) - 0.5 * (x_y_scale[i] - 1) + xy_grid) * \
-                              strides[i]
+            predictions_x_y = ((special.expit(heatmap_of_x_y) * x_y_scale[i]) - 0.5 *
+                               (x_y_scale[i] - 1) + xy_grid) * strides[i]
             predictions_h_w = (np.exp(heatmap_of_h_w) * anchors[i])
 
             # Put x, y, h, w back into heatmap
