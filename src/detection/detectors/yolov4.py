@@ -1,48 +1,10 @@
-import warnings
-from typing import List, NamedTuple, Tuple
+from typing import List, Tuple
 import numpy as np
 from scipy import special
 
-from .backend import Backend
-from .preprocessor import OperationInfo, Preprocessor
-from ..boundingbox import BoundingBox
 from ..detector import Detector
-
-# Probability = objectness confidence * class confidence
-Bbox = NamedTuple('Bbox', x1=float, y1=float, x2=float, y2=float, probability=float, category=int)
-
-
-def read_class_names(class_file_name):
-    """loads class name from a file"""
-    names = {}
-    with open(class_file_name, 'r') as data:
-        for ID, name in enumerate(data):
-            names[ID] = name.strip('\n')
-    return names
-
-
-class Coco:
-    class_names = read_class_names('files/coco/coco.names')
-
-
-def rescale_boxes(boxes: List[Bbox], info: OperationInfo):
-    boxes[:, [0, 2]] = boxes[:, [0, 2]] * info.scale + info.diff_width
-    boxes[:, [1, 3]] = boxes[:, [1, 3]] * info.scale + info.diff_height
-    return boxes
-
-
-# Convert and return
-def Bbox2BoundingBox(bbox: Bbox) -> BoundingBox:
-    x1, y1, x2, y2 = [int(x) for x in bbox[:-2]]
-    x, y, w, h = x1, y1, x2 - x1, y2 - y1
-    return BoundingBox(x=x, y=y, w=w, h=h)
-
-
-def is_person(bbox: Bbox) -> bool:
-    if Coco.class_names.get(int(bbox.category)) == 'person':
-        return True
-    else:
-        return False
+from ..boundingbox import BoundingBox
+from ..utils import ONNXBackend, Preprocessor, OperationInfo, Coco
 
 
 def get_anchors(anchors_path):
@@ -68,14 +30,21 @@ class YoloV4(Detector):
     """
 
     input_shape = (1, 416, 416, 3)  # (batch_size, height, width, channels)
-    strides = np.array([8, 16, 32])
-    x_y_scale = [1.2, 1.1, 1.05]  # ?
-
+    strides = (8, 16, 32)
+    x_y_scale = (1.2, 1.1, 1.05)  # ?
     anchors = get_anchors('files/yolov4/yolov4_anchors.txt')
     onnx_file_name = 'files/yolov4/yolov4.onnx'
 
-    def __init__(self):
-        self.__sess = Backend.get_inference_session(self.onnx_file_name)
+    # Parameters
+    score_threshold = 0.05  # Default: 0.25
+    iou_threshold = 0.3  # Default: 0.213
+    valid_scale = (16, 208)  # Default: (0, 416 // 2)
+
+    def __init__(self, use_gpu=None):
+        super().__init__(use_gpu)
+
+        ONNXBackend.use_gpu = use_gpu
+        self.__sess = ONNXBackend.get_inference_session(self.onnx_file_name)
 
     def detect(self, image: np.array) -> List[BoundingBox]:
         image = image.copy()
@@ -88,11 +57,10 @@ class YoloV4(Detector):
 
     @classmethod
     def __preprocess(cls, image) -> Tuple[np.ndarray, OperationInfo]:
-        image, info = Preprocessor.preprocess_image(image, YoloV4.input_shape)
+        image, info = Preprocessor.preprocess_image(image, cls.input_shape)
         return image, info
 
     def __inference(self, image) -> List[np.ndarray]:
-        # Step 3: Inference
         output_metadata = self.__sess.get_outputs()
         output_names = list(map(lambda out: out.name, output_metadata))
         input_name = self.__sess.get_inputs()[0].name
@@ -112,74 +80,47 @@ class YoloV4(Detector):
 
     @classmethod
     def __postprocess(cls, outputs, info: OperationInfo) -> List[BoundingBox]:
-        detections = PostProcessor.generate_detections(outputs, YoloV4.anchors, YoloV4.strides, YoloV4.x_y_scale)
-        bboxes = PostProcessor.generate_and_adjust_bboxes(detections, 0.25, info)
-        bboxes = PostProcessor.nms(bboxes, 0.213, method='nms')
-
-        # # Show outputs
-        # image = cls.draw_bbox(orig_image, bboxes)
-        # cv2.imshow('img', image)
-        # cv2.waitKey(10_000)
-        # cv2.destroyWindow('img')
+        detections = YoloV4PostProcessor.generate_detections(outputs, cls.anchors, cls.strides, cls.x_y_scale)
+        bboxes = YoloV4PostProcessor.generate_and_adjust_bboxes(detections, cls.score_threshold, cls.valid_scale,
+                                                                info, cls.input_shape)
+        bboxes = YoloV4PostProcessor.nms(bboxes, iou_threshold=cls.iou_threshold, method='nms')
 
         # Convert outputs
+        class Bbox:
+            def __init__(self, x1: float, y1: float, x2: float, y2: float, probability: float, category: int):
+                self.x1 = x1
+                self.y1 = y1
+                self.x2 = x2
+                self.y2 = y2
+                self.probability = probability  # Probability = objectness confidence * class confidence
+                self.category = int(category)
+
+            def to_BoundingBox(self) -> BoundingBox:
+                x, y, w, h = self.x1, self.y1, self.x2 - self.x1, self.y2 - self.y1
+                return BoundingBox(x=int(x), y=int(y), w=int(w), h=int(h))
+
+            def is_person(self) -> bool:
+                if Coco.class_names.get(int(self.category)) == 'person':
+                    return True
+                else:
+                    return False
+
         bounding_boxes = []
         for bbox in bboxes:
             b = Bbox(*bbox)
-            if is_person(b):
-                bounding_boxes.append(Bbox2BoundingBox(b))
+            if b.is_person():
+                bounding_boxes.append(b.to_BoundingBox())
         return bounding_boxes
 
-    # @staticmethod
-    # def draw_bbox(image, bboxes, show_label=False):
-    #     """
-    #
-    #
-    #     :param image: The original image
-    #     :param bboxes: [x_min, y_min, x_max, y_max, probability, cls_id] format coordinates, in original coordinates
-    #     :param show_label:
-    #     :return:
-    #     """
-    #
-    #     image = image.copy()
-    #     num_classes = len(Coco.class_names)
-    #     image_h, image_w, _ = image.shape
-    #     hsv_tuples = [(1.0 * x / num_classes, 1., 1.) for x in range(num_classes)]
-    #     colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
-    #     colors = list(map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)), colors))
-    #     font_scale = 0.5
-    #
-    #     random.seed(0)
-    #     random.shuffle(colors)
-    #     random.seed(None)
-    #
-    #     for i, bbox in enumerate(bboxes):
-    #         coords = np.array(bbox[:4], dtype=np.int32)
-    #         score = bbox[4]
-    #         class_ind = int(bbox[5])
-    #         bbox_color = colors[class_ind]
-    #         bbox_thick = int(0.6 * (image_h + image_w) / 600)
-    #         c1, c2 = (coords[0], coords[1]), (coords[2], coords[3])
-    #         cv2.rectangle(image, c1, c2, bbox_color, bbox_thick)
-    #
-    #         if show_label:
-    #             bbox_mess = '%s: %.2f' % (Coco.class_names[class_ind], score)
-    #             t_size = cv2.getTextSize(bbox_mess, 0, font_scale, thickness=bbox_thick // 2)[0]
-    #             cv2.rectangle(image, c1, (c1[0] + t_size[0], c1[1] - t_size[1] - 3), bbox_color, -1)
-    #             cv2.putText(image, bbox_mess, (c1[0], c1[1] - 2), cv2.FONT_HERSHEY_SIMPLEX,
-    #                         font_scale, (0, 0, 0), bbox_thick // 2, lineType=cv2.LINE_AA)
-    #
-    #     return image
 
-
-class PostProcessor:
+class YoloV4PostProcessor:
     @staticmethod
     def generate_detections(output, anchors, strides, x_y_scale) -> np.ndarray:
         """Generates an array of every detection with shape (-1, 85)"""
         for i, heatmap in enumerate(output):
             heatmap_side_length = heatmap.shape[1]  # assert heatmap.shape[1] == heatmap.shape[2]
 
-            # heatmaps contain: Batch x H x W x Anchor x Value
+            # heatmaps contain: Batch x H? x W? x Anchor x Value - or B x W x H x A x V
             # Values are: center_x, center_y, h, w, object confidence, 80 x class confidence
             heatmap_of_x_y = heatmap[:, :, :, :, 0:2]
             heatmap_of_w_h = heatmap[:, :, :, :, 2:4]
@@ -208,9 +149,9 @@ class PostProcessor:
         return detections
 
     @staticmethod
-    def generate_and_adjust_bboxes(detections, score_threshold, info: OperationInfo):
+    def generate_and_adjust_bboxes(detections: np.ndarray, score_threshold: float, valid_scale: Tuple[float, float],
+                                   info: OperationInfo, input_shape) -> np.ndarray:
         """rework boxes, work with confidence, remove boundary boxes with a low detection probability"""
-        valid_scale = [0, np.inf]
 
         predicted_x_y_w_hs = detections[:, 0:4]  # (center_x, center_y, w, h)'s
         predicted_objectness_ = detections[:, 4]  # objectness'
@@ -235,36 +176,35 @@ class PostProcessor:
         # Update y coordinates
         predicted_coords_transformed[:, 1::2] = (predicted_coords[:, 1::2] - pad_each_y) / scale
 
-        # clip some boxes that are out of range
-        # TODO use input shape
-        coords = np.concatenate([np.maximum(predicted_coords_transformed[:, :2], [0, 0]),
-                                 np.minimum(predicted_coords_transformed[:, 2:], [416 - 1, 416 - 1])], axis=-1)
-        invalid_mask = np.logical_or((coords[:, 0] > coords[:, 2]),
-                                     (coords[:, 1] > coords[:, 3]))
-        if np.sum(invalid_mask) > 0:
-            warnings.warn(f'{np.sum(invalid_mask) / len(invalid_mask) * 100}% of generated detections are outside')
-        coords[invalid_mask] = 0
+        def clip(predicted_coords_transformed, info, input_shape):
+            # clip some boxes that are out of range
+            # Note: maybe 1 and 2 should be flipped
+            orig_x_size = (input_shape[1] - 2 * info.pad_each_x) / scale - 1
+            orig_y_size = (input_shape[2] - 2 * info.pad_each_y) / scale - 1
+            coords = np.concatenate([np.maximum(predicted_coords_transformed[:, :2], [0, 0]),
+                                     np.minimum(predicted_coords_transformed[:, 2:],
+                                                [orig_x_size, orig_y_size])], axis=-1)
+            invalid_mask = np.logical_or((coords[:, 0] > coords[:, 2]),
+                                         (coords[:, 1] > coords[:, 3]))
+            coords[invalid_mask] = 0
 
-        # Create a mask for boxes with invalid scales
-        scale_of_bboxes = np.sqrt(
-            np.multiply.reduce(coords[:, 2:4] - coords[:, 0:2], axis=-1))
-        scale_mask = np.logical_and((valid_scale[0] < scale_of_bboxes), (scale_of_bboxes < valid_scale[1]))
-        if np.sum(scale_mask) < len(scale_mask):
-            warnings.warn(f'{(len(scale_mask) - np.sum(scale_mask)) / len(scale_mask) * 100}% of generated detections have invalid scale')
+            # Create a mask for boxes with invalid scales
+            scale_of_bboxes = np.sqrt(
+                np.multiply.reduce(coords[:, 2:4] - coords[:, 0:2], axis=-1))
+            scale_mask = np.logical_and((valid_scale[0] < scale_of_bboxes), (scale_of_bboxes < valid_scale[1]))
 
-        # Create a mask for boxes with low scores
-        classes = np.argmax(predicted_class_confidences, axis=-1)
-        scores = predicted_objectness_ * predicted_class_confidences[np.arange(len(coords)), classes]
-        score_mask = scores > score_threshold
+            # Create a mask for boxes with low scores
+            classes = np.argmax(predicted_class_confidences, axis=-1)
+            scores = predicted_objectness_ * predicted_class_confidences[np.arange(len(coords)), classes]
+            score_mask = scores > score_threshold
 
-        # Remove invalid boxes
-        mask = np.logical_and(scale_mask, score_mask)
-        coords, scores, classes = coords[mask], scores[mask], classes[mask]
+            # Remove invalid boxes
+            score_and_scale_mask = np.logical_and(scale_mask, score_mask)
+            return coords[score_and_scale_mask], scores[score_and_scale_mask], classes[score_and_scale_mask]
+
+        coords, scores, classes = clip(predicted_coords_transformed, info, input_shape)
 
         data = np.concatenate([coords, scores[:, np.newaxis], classes[:, np.newaxis]], axis=-1)
-        # bboxes = []
-        # for row in data:
-        #     bboxes.append(Bbox(*row))
         return data
 
     @staticmethod
@@ -287,7 +227,7 @@ class PostProcessor:
         return iou
 
     @staticmethod
-    def nms(bboxes: np.ndarray, iou_threshold, sigma=0.3, method='nms'):
+    def nms(bboxes: np.ndarray, iou_threshold: float, sigma=0.3, method='nms'):
         """
         :param method:
         :param sigma:
@@ -311,7 +251,7 @@ class PostProcessor:
                 best_bbox = cls_bboxes[max_ind]
                 best_bboxes.append(best_bbox)
                 cls_bboxes = np.concatenate([cls_bboxes[: max_ind], cls_bboxes[max_ind + 1:]])
-                iou = PostProcessor.calculate_iou(best_bbox[np.newaxis, :4], cls_bboxes[:, :4])
+                iou = YoloV4PostProcessor.calculate_iou(best_bbox[np.newaxis, :4], cls_bboxes[:, :4])
                 weight = np.ones((len(iou),), dtype=np.float32)
 
                 assert method in ['nms', 'soft-nms']

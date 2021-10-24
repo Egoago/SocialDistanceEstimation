@@ -3,10 +3,9 @@ from typing import List, Tuple
 
 import numpy as np
 
-from src.detection import Detector, BoundingBox
-from .backend import Backend
-
-from .preprocessor import Preprocessor, OperationInfo
+from ..detector import Detector
+from ..boundingbox import BoundingBox
+from ..utils import ONNXBackend, Preprocessor, OperationInfo
 
 
 # TODO finish if needed
@@ -20,12 +19,15 @@ class TinyYoloV3(Detector):
             object_detection_segmentation/tiny-yolov3/model/tiny-yolov3-11.onnx"
     """
 
-    input_shape = (1, 3, 416, 416)  # Attention! TinyYolo expects B x C x H or W x H or W
+    input_shape = (1, 3, 416, 416)  # Attention! TinyYolo expects Batch x Channel x Height or Width x Width or Height
     onnx_file_name = 'files/yolov3/tiny-yolov3-11.onnx'
 
-    def __init__(self):
+    def __init__(self, use_gpu=None):
+        super().__init__(use_gpu)
+
         warnings.warn(f'{self.__class__.__name__} is still under development')
-        self.__sess = Backend.get_inference_session(self.onnx_file_name)
+        ONNXBackend.use_gpu = use_gpu
+        self.__sess = ONNXBackend.get_inference_session(self.onnx_file_name)
 
     def detect(self, image: np.ndarray) -> List[BoundingBox]:
         image = image.copy()
