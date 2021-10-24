@@ -2,7 +2,7 @@ from abc import abstractmethod, ABCMeta
 from typing import List
 import numpy as np
 
-from detection.boundingbox import BoundingBox
+from .boundingbox import BoundingBox
 
 
 class Detector(object, metaclass=ABCMeta):
