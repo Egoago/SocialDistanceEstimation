@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Tuple
 
 import numpy as np
 
@@ -50,9 +49,9 @@ class Intrinsics:
     cy: float = 0
 
     def proj(self) -> np.ndarray:
-        return np.array([[self.fx, 0, self.cx],
-                         [0, self.fy, self.cy],
-                         [0,       0,       1]], dtype=float)
+        return np.array([[-self.fx, 0, self.cx],
+                         [0, -self.fy, self.cy],
+                         [0,        0,       1]], dtype=float)
 
     def proj_inv(self) -> np.ndarray:
         return np.linalg.inv(self.proj())

@@ -7,34 +7,33 @@ import numpy as np
 from src.projection.base import Camera, homogeneous, homogeneous_inv
 
 
-class Projector:
-    def __init__(self, camera: Camera = Camera()):
-        self.camera = camera
+def screen2ndc(points: np.ndarray, res: np.ndarray) -> np.ndarray:
+    return homogeneous(points / res * 2 - 1)
 
-    def screen2ndc(self, points: np.ndarray) -> np.ndarray:
-        return homogeneous(points / self.camera.intrinsics.res * 2 - 1)
 
-    def ndc2screen(self, ndc: np.ndarray) -> np.ndarray:
-        ndc = homogeneous_inv(ndc)  # perspective divide
-        dc = (ndc + 1) / 2          # ndc to dc
-        return dc * self.camera.intrinsics.res  # dc to screen
+def ndc2screen(ndc: np.ndarray, res: np.ndarray) -> np.ndarray:
+    ndc = homogeneous_inv(ndc)  # perspective divide
+    dc = (ndc + 1) / 2  # ndc to dc
+    return dc * res  # dc to screen
 
-    def project(self, points: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        P = self.camera.intrinsics.proj()
-        C = self.camera.extrinsics.cam()
 
-        points_cam = homogeneous_inv(C.dot(homogeneous(points).T).T)
-        ndc = P.dot(points_cam.T).T
-        depth = ndc[:, 2]
-        return self.ndc2screen(ndc), depth
+def project(points: np.ndarray, camera: Camera = Camera()) -> Tuple[np.ndarray, np.ndarray]:
+    P = camera.intrinsics.proj()
+    C = camera.extrinsics.cam()
 
-    def back_project(self, pixels: np.ndarray, scaling_factors: np.ndarray) -> np.ndarray:
-        ndc = self.screen2ndc(pixels)
-        P_inv = self.camera.intrinsics.proj_inv()
-        C_inv = self.camera.extrinsics.cam_inv()
+    points_cam = homogeneous_inv(C.dot(homogeneous(points).T).T)
+    ndc = P.dot(points_cam.T).T
+    depth = ndc[:, 2]
+    return ndc2screen(ndc, camera.intrinsics.res), depth
 
-        points_cam = P_inv.dot(ndc.T).T * scaling_factors[:, None]
-        return (C_inv.dot(homogeneous(points_cam).T)).T
+
+def back_project(pixels: np.ndarray, scaling_factors: np.ndarray, camera: Camera = Camera()) -> np.ndarray:
+    ndc = screen2ndc(pixels, camera.intrinsics.res)
+    P_inv = camera.intrinsics.proj_inv()
+    C_inv = camera.extrinsics.cam_inv()
+
+    points_cam = P_inv.dot(ndc.T).T * scaling_factors[:, None]
+    return homogeneous_inv(C_inv.dot(homogeneous(points_cam).T).T)
 
 
 class ProjectorTest(unittest.TestCase):
@@ -46,11 +45,11 @@ class ProjectorTest(unittest.TestCase):
                 points.append([x, 0, z])
         return np.array(points, dtype=float)
 
-    def __drawWorld__(self, points, c):
+    def __drawWorld__(self, points, c='b'):
         camera = np.array([0, 0, 0, 1], dtype=float)
         lookat = np.array([0, 0, -10000, 1], dtype=float)
-        camera = self.projector.camera.extrinsics.cam_inv().dot(camera.T)
-        lookat = self.projector.camera.extrinsics.cam_inv().dot(lookat.T)
+        camera = self.camera.extrinsics.cam_inv().dot(camera.T)
+        lookat = self.camera.extrinsics.cam_inv().dot(lookat.T)
         camera = homogeneous_inv(camera)
         lookat = homogeneous_inv(lookat)
         fig = plt.figure(figsize=(8, 8))
@@ -67,12 +66,12 @@ class ProjectorTest(unittest.TestCase):
         plt.show()
 
     def __ScreenGrid__(self, resolution=10) -> np.ndarray:
-        res = self.projector.camera.intrinsics.res
+        res = self.camera.intrinsics.res
         pixels = []
         for x in np.linspace(0, res[0], resolution):
             for y in np.linspace(0, res[1], resolution):
                 pixels.append([x, y])
-        return  np.array(pixels, dtype=float)
+        return np.array(pixels, dtype=float)
 
     @staticmethod
     def __drawScreen__(pixels):
@@ -82,18 +81,18 @@ class ProjectorTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.verbose = False
-        self.projector = Projector()
+        self.camera = Camera()
 
     def test_back_project(self) -> None:
         pixels = self.__ScreenGrid__()
-        world_points = self.projector.back_project(pixels, 1000*np.ones(pixels.shape[0]))
+        world_points = back_project(pixels, 1000 * np.ones(pixels.shape[0]), self.camera)
         if self.verbose:
             self.__drawScreen__(pixels)
             self.__drawWorld__(world_points)
 
     def test_project(self) -> None:
         world_points = self.__WorldGrid__()
-        pixels, depths = self.projector.project(world_points)
+        pixels, depths = project(world_points, self.camera)
         if self.verbose:
             self.__drawWorld__(world_points[depths < 0], c='r')
             self.__drawWorld__(world_points[depths > 0], c='g')
@@ -101,12 +100,12 @@ class ProjectorTest(unittest.TestCase):
 
     def test_all(self) -> None:
         world_points = self.__WorldGrid__()
-        pixels, depths = self.projector.project(world_points)
-        world_points_new = homogeneous_inv(self.projector.back_project(pixels, depths))
+        pixels, depths = project(world_points, self.camera)
+        world_points_new = back_project(pixels, depths, self.camera)
         if self.verbose:
             self.__drawWorld__(world_points, c='r')
             self.__drawWorld__(world_points_new, c='g')
-        assert np.linalg.norm(world_points-world_points_new) < 1e-5
+        self.assertTrue(np.allclose(world_points, world_points_new))
 
 
 if __name__ == '__main__':
