@@ -26,21 +26,20 @@ def homogeneous_inv(vectors: np.ndarray) -> np.ndarray:
 
 @dataclass
 class Extrinsics:
-    normal: np.ndarray = normalize(np.array([0.1, -1, 1], dtype=float))
+    normal: np.ndarray = normalize(np.array([0.1, 1, 0.2], dtype=float))
     distance: float = 20000     # in mms
 
-    def cam(self) -> Tuple[np.ndarray, np.ndarray]:
-        inv_base, inv_null = self.cam_inv()
-        return np.linalg.inv(inv_base), -1*inv_null
+    def cam_inv(self) -> np.ndarray:
+        return np.linalg.inv(self.cam())
 
-    def cam_inv(self) -> Tuple[np.ndarray, np.ndarray]:
+    def cam(self) -> np.ndarray:
         up = normalize(self.normal)
         forward = np.array([0, 0, -1], dtype=float)
         right = normalize(np.cross(forward, up))
         forward = normalize(np.cross(up, right))
         origo = -self.distance * up
-        return np.c_[forward, up, right], origo
-
+        return np.vstack([np.c_[forward, up, right, origo],
+                          np.array([0, 0, 0, 1], dtype=float)])
 
 @dataclass
 class Intrinsics:
@@ -53,7 +52,7 @@ class Intrinsics:
     def proj(self) -> np.ndarray:
         return np.array([[self.fx, 0, self.cx],
                          [0, self.fy, self.cy],
-                         [0, 0, 1]], dtype=float)
+                         [0,       0,       1]], dtype=float)
 
     def proj_inv(self) -> np.ndarray:
         return np.linalg.inv(self.proj())

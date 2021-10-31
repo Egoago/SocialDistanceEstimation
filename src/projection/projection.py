@@ -15,15 +15,15 @@ class Projector:
         return homogeneous(points / self.camera.intrinsics.res * 2 - 1)
 
     def ndc2screen(self, ndc: np.ndarray) -> np.ndarray:
-        ndc = -homogeneous_inv(ndc)  # perspective divide
+        ndc = homogeneous_inv(ndc)  # perspective divide
         dc = (ndc + 1) / 2          # ndc to dc
         return dc * self.camera.intrinsics.res  # dc to screen
 
     def project(self, points: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         P = self.camera.intrinsics.proj()
-        R, T = self.camera.extrinsics.cam()
+        C = self.camera.extrinsics.cam()
 
-        points_cam = (np.c_[R, T].dot(homogeneous(points).T)).T
+        points_cam = homogeneous_inv(C.dot(homogeneous(points).T).T)
         ndc = P.dot(points_cam.T).T
         depth = ndc[:, 2]
         return self.ndc2screen(ndc), depth
@@ -31,28 +31,39 @@ class Projector:
     def back_project(self, pixels: np.ndarray, scaling_factors: np.ndarray) -> np.ndarray:
         ndc = self.screen2ndc(pixels)
         P_inv = self.camera.intrinsics.proj_inv()
-        R_inv, T_inv = self.camera.extrinsics.cam_inv()
+        C_inv = self.camera.extrinsics.cam_inv()
 
         points_cam = P_inv.dot(ndc.T).T * scaling_factors[:, None]
-        return (np.c_[R_inv, T_inv].dot(homogeneous(points_cam).T)).T
+        return (C_inv.dot(homogeneous(points_cam).T)).T
 
 
 class ProjectorTest(unittest.TestCase):
     @staticmethod
-    def __WorldGrid__(resolution=10, size=10000) -> np.ndarray:
+    def __WorldGrid__(resolution=10, size=100000) -> np.ndarray:
         points = []
         for x in np.linspace(-size, size, resolution):
             for z in np.linspace(-size, size, resolution):
                 points.append([x, 0, z])
         return np.array(points, dtype=float)
 
-    def __drawWorld__(self, points):
-        camera = self.projector.camera.extrinsics.cam_inv()[1]
+    def __drawWorld__(self, points, c):
+        camera = np.array([0, 0, 0, 1], dtype=float)
+        lookat = np.array([0, 0, -10000, 1], dtype=float)
+        camera = self.projector.camera.extrinsics.cam_inv().dot(camera.T)
+        lookat = self.projector.camera.extrinsics.cam_inv().dot(lookat.T)
+        camera = homogeneous_inv(camera)
+        lookat = homogeneous_inv(lookat)
         fig = plt.figure(figsize=(8, 8))
         ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(points[:, 0], points[:, 2], points[:, 1])
+        ax.scatter(points[:, 0], points[:, 2], points[:, 1], c=c)
         ax.scatter(camera[0], camera[2], camera[1], s=20, c='r')
-        ax.plot([0, camera[0]], [0, camera[2]], [0, camera[1]])
+        ax.plot([0, camera[0]], [0, camera[2]], [0, camera[1]], c='black')
+        ax.plot([camera[0], lookat[0]],
+                [camera[2], lookat[2]],
+                [camera[1], lookat[1]], c='r')
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
         plt.show()
 
     def __ScreenGrid__(self, resolution=10) -> np.ndarray:
@@ -70,7 +81,7 @@ class ProjectorTest(unittest.TestCase):
         plt.show()
 
     def setUp(self) -> None:
-        self.verbose = True
+        self.verbose = False
         self.projector = Projector()
 
     def test_back_project(self) -> None:
@@ -84,15 +95,18 @@ class ProjectorTest(unittest.TestCase):
         world_points = self.__WorldGrid__()
         pixels, depths = self.projector.project(world_points)
         if self.verbose:
-            self.__drawWorld__(world_points)
-            self.__drawScreen__(pixels)
+            self.__drawWorld__(world_points[depths < 0], c='r')
+            self.__drawWorld__(world_points[depths > 0], c='g')
+            self.__drawScreen__(pixels[depths > 0])
 
     def test_all(self) -> None:
         world_points = self.__WorldGrid__()
         pixels, depths = self.projector.project(world_points)
-        world_points_new = self.projector.back_project(pixels, depths)
+        world_points_new = homogeneous_inv(self.projector.back_project(pixels, depths))
         if self.verbose:
-            self.__drawWorld__(world_points-world_points_new)
+            self.__drawWorld__(world_points, c='r')
+            self.__drawWorld__(world_points_new, c='g')
+        assert np.linalg.norm(world_points-world_points_new) < 1e-5
 
 
 if __name__ == '__main__':
