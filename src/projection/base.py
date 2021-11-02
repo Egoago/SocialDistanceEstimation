@@ -25,7 +25,7 @@ def homogeneous_inv(vectors: np.ndarray) -> np.ndarray:
 
 @dataclass
 class Extrinsics:
-    normal: np.ndarray = normalize(np.array([0.1, 1, 0.2], dtype=float))
+    normal: np.ndarray = normalize(np.array([0, 1, 1], dtype=float))
     distance: float = 20000     # in mms
 
     def cam_inv(self) -> np.ndarray:
@@ -36,6 +36,9 @@ class Extrinsics:
         forward = np.array([0, 0, -1], dtype=float)
         right = normalize(np.cross(forward, up))
         forward = normalize(np.cross(up, right))
+        assert abs(forward.dot(right)) < 1e-5
+        assert abs(forward.dot(up)) < 1e-5
+        assert abs(right.dot(up)) < 1e-5
         origo = -self.distance * up
         return np.vstack([np.c_[forward, up, right, origo],
                           np.array([0, 0, 0, 1], dtype=float)])
