@@ -10,7 +10,7 @@ def normalize(vector: np.ndarray) -> np.ndarray:
 def homogeneous(vectors: np.ndarray) -> np.ndarray:
     assert vectors.ndim in [1, 2]
     if vectors.ndim == 1:
-        return np.concatenate([vectors, 1], dtype=vectors.dtype)
+        return np.hstack((vectors, 1))
     elif vectors.ndim == 2:
         return np.c_[vectors, np.ones(vectors.shape[0], dtype=vectors.dtype)]
 

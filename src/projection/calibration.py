@@ -79,7 +79,7 @@ class CalibrationTest(unittest.TestCase):
         ax.set_zlabel('y')
         plt.show()
 
-    def __setUpScene__(self, count=500, noise_strength=100, area=50000, height=1750) -> None:
+    def __setUpScene__(self, count=1000, noise_strength=500, area=50000, height=1750) -> None:
         self.height = height
         self.bottom_w = (np.random.random((count, 3)).astype(dtype=float) - 0.5) * 2 \
                         * np.array([area, noise_strength, area], dtype=float) \
@@ -111,17 +111,19 @@ class CalibrationTest(unittest.TestCase):
 
     def setUp(self) -> None:
         print('Setup')
+        self.verbose = True
         self.__setUpCamera__()
         self.__setUpScene__()
         self.p_bottom, self.lambda_b = project(self.bottom_w, self.camera)
         self.p_top, self.lambda_t = project(self.top_w, self.camera)
         self.__clip__()
-        self.__drawScene__()
-        self.__drawScreen__()
         self.calibrator = ProjectionCalibrator(self.camera.intrinsics, self.height)
 
-    def test_something(self) -> None:
+    def test_calibration(self) -> None:
         print('Test')
+        if self.verbose:
+            self.__drawScene__()
+            self.__drawScreen__()
         camera = self.calibrator.calibrate(p_bottom=self.p_bottom, p_top=self.p_top)
         tolerance = 1e-2
         self.assertGreater(tolerance, np.linalg.norm(np.cross(self.camera.extrinsics.normal, camera.extrinsics.normal)))
