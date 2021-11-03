@@ -3,7 +3,6 @@ from src.detection.boundingbox import BoundingBox
 from motpy import Detection, MultiObjectTracker
 from src.tracking.tracker import Tracker
 from src.tracking.Person import Person
-import numpy as np
 
 
 class MotpyTracker(Tracker):

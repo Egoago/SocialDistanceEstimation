@@ -10,4 +10,4 @@ class CustomTracker(Tracker):
         self.people = []
 
     def track(self, bboxes: List[BoundingBox]) -> List[Person]:
-        pass
+        raise NotImplementedError

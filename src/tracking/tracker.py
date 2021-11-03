@@ -8,6 +8,7 @@ class Tracker:
     def track(self, bboxes: List[BoundingBox]) -> List[Person]:
         raise NotImplementedError
 
+    @staticmethod
     def transform_bbox(bbox: BoundingBox):
         return np.array([bbox.x, bbox.y, bbox.x + bbox.w, bbox.y + bbox.h], dtype=int).squeeze()
 
