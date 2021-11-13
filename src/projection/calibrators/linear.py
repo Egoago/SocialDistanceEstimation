@@ -19,10 +19,7 @@ class LinearCalibrator(ProjectionCalibrator):
         return eigen_pairs[1][:, min_index]
 
     def calibrate(self, p_top: np.ndarray, p_bottom: np.ndarray) -> Camera:
-        assert p_top.ndim == 2 and p_top.shape[1] == 2
-        assert p_bottom.ndim == 2 and p_bottom.shape[1] == 2
-        assert p_top.shape[0] == p_bottom.shape[0]
-        assert p_top.shape[0] > 2
+        self.__validate_input__(p_top, p_bottom)
         res = self.camera.intrinsics.res
         P_inv = self.camera.intrinsics.proj_inv()
         h = self.person_height

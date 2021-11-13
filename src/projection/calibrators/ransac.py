@@ -29,6 +29,7 @@ class RansacCalibrator(ProjectionCalibrator):
         self.inliers = np.empty(0, dtype=float)
 
     def calibrate(self, p_top: np.ndarray, p_bottom: np.ndarray) -> Camera:
+        self.__validate_input__(p_top, p_bottom)
         data = np.hstack((p_top, p_bottom))
         _, self.inliers = ransac(data=data,
                                  min_samples=3,

@@ -17,6 +17,13 @@ def ndc2screen(ndc: np.ndarray, res: np.ndarray) -> np.ndarray:
 
 
 def project(points: np.ndarray, camera: Camera = Camera()) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Projects 3D points to screen pixels.
+
+    :param points: 3D points (in mms) to be projected on the screen
+    :param camera: the calibrated camera to use
+    :return: Tuple of numpy arrays containing the projected screen pixels
+    """
     P = camera.intrinsics.proj()
     C = camera.extrinsics.cam()
 
@@ -31,6 +38,16 @@ def project(points: np.ndarray, camera: Camera = Camera()) -> Tuple[np.ndarray, 
 
 
 def back_project(pixels: np.ndarray, camera: Camera = Camera(), scaling_factors: np.ndarray = None) -> np.ndarray:
+    """
+    Back-projects screen pixels to 3D points.
+
+    :param pixels: Screen pixels to back-project
+    :param scaling_factors: scaling factors to use during back-projection.
+    If all is 1, back-projected 3D coordinates will be the screen pixels' coordinates in world space.
+    If None (default) the scaling factors will be chosen to project on to the `y=0` ground plane.
+    :param camera: the calibrated camera to use
+    :return: numpy array containing the back-projected 3D coordinates
+    """
     ndc = screen2ndc(pixels, camera.intrinsics.res)
     P_inv = camera.intrinsics.proj_inv()
     C_inv = camera.extrinsics.cam_inv()
