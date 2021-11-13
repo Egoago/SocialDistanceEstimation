@@ -1,7 +1,7 @@
 from typing import List
 
 from src.detection import BoundingBox
-from src.tracking.Person import Person
+from src.tracking.person import Person
 from src.tracking.tracker import Tracker
 
 

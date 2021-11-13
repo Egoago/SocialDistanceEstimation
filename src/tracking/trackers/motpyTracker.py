@@ -1,8 +1,8 @@
 from typing import List
 from src.detection.boundingbox import BoundingBox
 from motpy import Detection, MultiObjectTracker
-from src.tracking.tracker import Tracker
-from src.tracking.Person import Person
+from src.tracking.tracker import Tracker, transform_bbox
+from src.tracking.person import Person
 
 
 class MotpyTracker(Tracker):
@@ -22,7 +22,7 @@ class MotpyTracker(Tracker):
     def track(self, bboxes: List[BoundingBox]) -> List[Person]:
         detections = []
         for bbox in bboxes:
-            detections.append(Detection(Tracker.transform_bbox(bbox)))
+            detections.append(Detection(transform_bbox(bbox)))
         self.tracker.step(detections)
         tracks = self.tracker.active_tracks()
         people = []
