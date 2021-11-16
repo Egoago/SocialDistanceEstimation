@@ -1,7 +1,8 @@
 import unittest
-from src.detection.boundingbox import BoundingBox
 import numpy as np
 import cv2 as cv
+from src.detection.boundingbox import BoundingBox
+from src.tracking.tracker import BBoxFilter
 from src.tracking.trackers.motpyTracker import MotpyTracker
 
 width = 800
@@ -62,5 +63,5 @@ class MyTestCase(unittest.TestCase):
             cv.waitKey(int(1000 * dt))
 
     def test_MotpyTracker(self):
-        self.tracker = MotpyTracker(dt)
+        self.tracker = MotpyTracker(dt, BBoxFilter(img_size=(width, height),max_aspect=1, min_rel_height=0.1))
         self.run_simple_test()

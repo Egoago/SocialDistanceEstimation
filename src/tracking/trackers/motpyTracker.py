@@ -1,12 +1,14 @@
 from typing import List
+import numpy as np
 from src.detection.boundingbox import BoundingBox
 from motpy import Detection, MultiObjectTracker
-from src.tracking.tracker import Tracker, transform_bbox
+from src.tracking.tracker import Tracker, BBoxFilter
 from src.tracking.person import Person
 
 
 class MotpyTracker(Tracker):
-    def __init__(self, dt):
+    def __init__(self, dt, bbox_filter: BBoxFilter):
+        super().__init__(bbox_filter)
         model_spec = {
             'order_pos': 2, 'dim_pos': 2,  # position is a center in 2D space; under constant velocity model
             'order_size': 0, 'dim_size': 2,  # bounding box is 2 dimensional; under constant velocity model
@@ -20,9 +22,10 @@ class MotpyTracker(Tracker):
                                           matching_fn_kwargs={'min_iou': 0.0})
 
     def track(self, bboxes: List[BoundingBox]) -> List[Person]:
+        bboxes = self.bbox_filter(bboxes)
         detections = []
         for bbox in bboxes:
-            detections.append(Detection(transform_bbox(bbox)))
+            detections.append(Detection(np.array(bbox.corners(), dtype=int).squeeze()))
         self.tracker.step(detections)
         tracks = self.tracker.active_tracks()
         people = []
