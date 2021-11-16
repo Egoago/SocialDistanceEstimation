@@ -1,7 +1,7 @@
 from typing import List
 import numpy as np
-from src.detection.boundingbox import BoundingBox
 from motpy import Detection, MultiObjectTracker
+from src.detection.boundingbox import BoundingBox
 from src.tracking.tracker import Tracker, BBoxFilter
 from src.tracking.person import Person
 
