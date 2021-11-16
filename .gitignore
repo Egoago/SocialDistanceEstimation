@@ -1,2 +1,3 @@
 /.idea/
-/files/
+files/
+__pycache__/
