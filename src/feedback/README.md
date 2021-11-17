@@ -1,4 +1,4 @@
-# Documentation of Distances and feedback stuffs
+# Documentation of Distances and Feedback stuffs
 
 ## Overview
 `Distance` package:
