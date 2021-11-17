@@ -16,6 +16,14 @@ def ndc2screen(ndc: np.ndarray, res: np.ndarray) -> np.ndarray:
     return dc * res  # dc to screen
 
 
+def opencv2opengl(coords: Tuple[float, float], img_height: int) -> Tuple[float, float]:
+    return coords[0], img_height-coords[1]
+
+
+def opengl2opencv(coords: Tuple[float, float], img_height: int) -> Tuple[float, float]:
+    return opencv2opengl(coords, img_height)
+
+
 def project(points: np.ndarray, camera: Camera = Camera()) -> Tuple[np.ndarray, np.ndarray]:
     """
     Projects 3D points to screen pixels.
