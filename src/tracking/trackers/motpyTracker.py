@@ -12,29 +12,33 @@ class MotpyTracker(Tracker):
         model_spec = {
             'order_pos': 2, 'dim_pos': 2,  # position is a center in 2D space; under constant velocity model
             'order_size': 0, 'dim_size': 2,  # bounding box is 2 dimensional; under constant velocity model
-            'q_var_pos': 1000.,  # process noise
+            'q_var_pos': 100.0,  # process noise
             'r_var_pos': 0.1  # measurement noise
         }
-        self.tracker = MultiObjectTracker(dt,
+        self.tracker = MultiObjectTracker(dt/1000,
                                           model_spec=model_spec,
-                                          active_tracks_kwargs={'min_steps_alive': 2, 'max_staleness': 6},
-                                          tracker_kwargs={'max_staleness': 12},
-                                          matching_fn_kwargs={'min_iou': 0.0})
+                                          active_tracks_kwargs={'min_steps_alive': 5, 'max_staleness': 6},
+                                          tracker_kwargs={'max_staleness': 6},
+                                          matching_fn_kwargs={'min_iou': 0.01})
 
     def track(self, bboxes: List[BoundingBox]) -> List[Person]:
         bboxes = self.bbox_filter(bboxes)
         detections = []
         for bbox in bboxes:
-            detections.append(Detection(np.array(bbox.corners(), dtype=int).squeeze()))
+            top_left, bottom_right = bbox.corners()
+            detections.append(Detection(np.array([top_left[0],
+                                                  top_left[1],
+                                                  bottom_right[0],
+                                                  bottom_right[1]], dtype=int).squeeze()))
         self.tracker.step(detections)
         tracks = self.tracker.active_tracks()
         people = []
         for track in tracks:
             people.append(Person(id=abs(hash(track.id)) % (10 ** 8),
-                                 bbox=BoundingBox(track.box[0],
-                                                  track.box[1],
-                                                  track.box[2] - track.box[0],
-                                                  track.box[3] - track.box[1])))
+                                 bbox=BoundingBox(int(track.box[0]),
+                                                  int(track.box[1]),
+                                                  int(track.box[2] - track.box[0]),
+                                                  int(track.box[3] - track.box[1]))))
         # if len(tracks) > 0:
         #   print(step)
         # print('first track box: %s' % str(tracks[0].box))

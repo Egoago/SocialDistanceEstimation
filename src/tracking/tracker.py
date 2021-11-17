@@ -7,10 +7,10 @@ class BBoxFilter(NamedTuple):
     img_size: Tuple[int, int]
     min_aspect: float = 0
     max_aspect: float = 3
-    min_rel_height: int = 0
-    max_rel_height: int = 1
-    min_rel_width: int = 0
-    max_rel_width: int = 1
+    min_rel_height: float = 0
+    max_rel_height: float = 1
+    min_rel_width: float = 0
+    max_rel_width: float = 1
 
     def __call__(self, bboxes: List[BoundingBox]) -> List[BoundingBox]:
         return list(filter(lambda bbox: self.__filter_func__(bbox), bboxes))

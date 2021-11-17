@@ -1,5 +1,4 @@
-from person import Person
-from tracker import Tracker, BBoxFilter
+from .tracker import Tracker, BBoxFilter, Person
 
 
 def create_tracker(dt: float, bbox_filter: BBoxFilter) -> Tracker:

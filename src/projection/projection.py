@@ -69,7 +69,7 @@ def back_project(pixels: np.ndarray, camera: Camera = Camera(), scaling_factors:
         points_cam = P_inv.dot(ndc.T)
         with np.errstate(divide='ignore'):
             if points_cam.ndim == 2:
-                points_cam = -camera.extrinsics.distance*points_cam.T/camera.extrinsics.normal.dot(points_cam)[:, None]
+                points_cam = -camera.extrinsics.distance*points_cam.T/(camera.extrinsics.normal.dot(points_cam)+1e-16)[:, None]
             elif points_cam.ndim == 1:
                 points_cam = -camera.extrinsics.distance*points_cam.T/camera.extrinsics.normal.dot(points_cam)
     return homogeneous_inv(C_inv.dot(homogeneous(points_cam).T).T)

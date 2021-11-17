@@ -14,10 +14,19 @@ class RansacCalibrator(ProjectionCalibrator):
         def residuals(self, pixels: np.ndarray) -> np.ndarray:
             pixels_b = pixels[:, -2:]
             pixels_t = pixels[:, :-2]
-            points = back_project(pixels_b, self.calibrator.camera)
+            camera = self.calibrator.camera
+            points = back_project(pixels_b, camera)
             points[1] += self.calibrator.person_height
-            pixels_t_new, _ = project(points, self.calibrator.camera)
-            return np.linalg.norm(pixels_t_new - pixels_t, axis=1)
+            pixels_t_new, scaling_factors = project(points, camera)
+            pixel_diff = pixels_t_new - pixels_t
+            rel_diff = pixel_diff/camera.intrinsics.res
+            res = np.linalg.norm(rel_diff, axis=-1)
+            d = camera.extrinsics.distance*camera.extrinsics.normal.dot(np.array([0, 0, 1], dtype=float))
+            res = res * (np.abs(scaling_factors)) / d
+            med = np.median(res)
+            avg = np.average(res)
+            dev = np.std(res)
+            return res
 
         def estimate(self, pixels: np.ndarray) -> bool:
             self.calibrator.calibrate(pixels[:, :-2], pixels[:, -2:])
@@ -32,9 +41,10 @@ class RansacCalibrator(ProjectionCalibrator):
         self.__validate_input__(p_top, p_bottom)
         data = np.hstack((p_top, p_bottom))
         _, self.inliers = ransac(data=data,
-                                 min_samples=3,
-                                 residual_threshold=15,
+                                 min_samples=5,
+                                 residual_threshold=0.1,
                                  max_trials=50,
                                  model_class=RansacCalibrator.CalibrationWrapper)
-        self.camera = self.CalibrationWrapper.calibrator.calibrate(p_top[self.inliers], p_bottom[self.inliers])
+        if self.inliers is not None:
+            self.camera = self.CalibrationWrapper.calibrator.calibrate(p_top[self.inliers], p_bottom[self.inliers])
         return self.camera
