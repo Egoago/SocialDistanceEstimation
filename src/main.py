@@ -147,9 +147,11 @@ def main(args):
     for image in processed_frames:
         bgr_image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         out.write(bgr_image)
-        cv2.imshow('SocialDistanceEstimation', bgr_image)
-        cv2.waitKey(int(dt))
+        if args.display_images:
+            cv2.imshow('SocialDistanceEstimation', bgr_image)
+            cv2.waitKey(int(dt))
     out.release()
+    logger.info(f'Finished writing video to {args.output_video_path}')
     cv2.destroyAllWindows()
     logger.debug('Exit')
 
@@ -168,11 +170,11 @@ if __name__ == '__main__':
     default_output_video_path = 'files/output.avi'
 
     parser = argparse.ArgumentParser(description='Social distance estimation.')
-    parser.add_argument('--video_path', type=str, default=default_video_path,
+    parser.add_argument('--video-path', type=str, default=default_video_path,
                         help='The path to the input video (default: %(default)s)')
-    parser.add_argument('--output_video_path', type=str, default=default_output_video_path,
+    parser.add_argument('--output-video-path', type=str, default=default_output_video_path,
                         help='The path to the output video (default: %(default)s)')
-    parser.add_argument('--max_frames_to_process', type=int, default=400,  # TODO: default=None
+    parser.add_argument('--max-frames-to-process', type=int, default=400,  # TODO: default=None
                         help='Max count of frames of the input video to process.'
                              'If None, all frames are processed (default: %(default)s)')
     parser.add_argument('--logging-level', choices=['DEBUG', 'INFO', 'ERROR'], default='DEBUG',  # TODO: default='ERROR'
