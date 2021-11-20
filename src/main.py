@@ -1,11 +1,13 @@
+import json
 import logging
+import os.path
 from typing import Tuple
 
 import cv2
 import numpy as np
 
 logging.basicConfig(format="%(asctime)s %(levelname)-6s %(message)s",
-                    level=logging.DEBUG,
+                    level=logging.ERROR,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
@@ -25,10 +27,16 @@ class SocialDistanceEstimator:
         from projection import create_calibrator, Intrinsics
         self.calibrator = create_calibrator(Intrinsics(res=np.array(img_size)), method='least_squares')
 
-        self.settings = {'display_centers': True,
-                         'display_boxes': True,
-                         'display_proximity': True,
-                         'calibrate_at_bounding_boxes_count': 2000}
+        self.settings = {
+            # Draw a high-contrast disk at the center of the person's box
+            'display_centers': False,
+            # Draw a bounding box around the person
+            'display_bounding_boxes': True,
+            # Draw a circle in 3D around at each person's feet
+            'display_proximity': True,
+            # Amount of bounding boxes to gather before calibration
+            'calibrate_at_bounding_boxes_count': 2000,
+        }
         self.p_bottom = np.zeros((self.settings['calibrate_at_bounding_boxes_count'], 2), dtype=float)
         self.p_top = np.zeros((self.settings['calibrate_at_bounding_boxes_count'], 2), dtype=float)
         self.bounding_boxes_count = 0
@@ -46,22 +54,22 @@ class SocialDistanceEstimator:
 
     def __create_image(self, image, people):
         for person in people:
-            if self.settings.get('display_boxes'):
+            if self.settings.get('display_bounding_boxes'):
                 top_left, bottom_right = person.bbox.corners()
                 cv2.rectangle(image, top_left, bottom_right, person.color, 2)
 
-                if self.camera is not None and self.settings.get('display_proximity'):
-                    import projection as proj
-                    res = 20
-                    radius = 1000
-                    center = proj.back_project(np.array(proj.opencv2opengl(person.bbox.bottom(), self.img_size[1])),
-                                               self.camera)
-                    pixels = []
-                    for i in np.linspace(0, 2 * np.pi.real, res):
-                        point = center + np.array([np.cos(i), 0, np.sin(i)], dtype=float) * radius
-                        pixel = proj.opengl2opencv(tuple(proj.project(point, self.camera)[0]), self.img_size[1])
-                        pixels.append(pixel)
-                    cv2.polylines(image, np.int32([pixels]), True, (255, 128, 0), 2)
+            if self.camera is not None and self.settings.get('display_proximity'):
+                import projection as proj
+                res = 20
+                radius = 1000
+                center = proj.back_project(np.array(proj.opencv2opengl(person.bbox.bottom(), self.img_size[1])),
+                                           self.camera)
+                pixels = []
+                for i in np.linspace(0, 2 * np.pi.real, res):
+                    point = center + np.array([np.cos(i), 0, np.sin(i)], dtype=float) * radius
+                    pixel = proj.opengl2opencv(tuple(proj.project(point, self.camera)[0]), self.img_size[1])
+                    pixels.append(pixel)
+                cv2.polylines(image, np.int32([pixels]), True, (255, 128, 0), 2)
 
             if self.settings.get('display_centers'):
                 center = person.bbox.x + person.bbox.w // 2, person.bbox.y + person.bbox.h // 2
@@ -86,27 +94,23 @@ class SocialDistanceEstimator:
                 return
 
 
-def main():
-    frames_to_process = 50  # Should be no more than 4_000
-    video_path = 'files/videos/OxfordTownCentreDataset.avi'
-    output_video_path = 'files/output.avi'
-    # "Oxford Town Centre Dataset" video - Source:
-    # https://drive.google.com/file/d/1UMIcffhxGw1aCAyztNWlslHHtayw9Fys/view
-    # from https://github.com/DrMahdiRezaei/DeepSOCIAL
-    # Dataset:
-    # """B. Benfold and I. Reid, "Stable multi-target tracking in real-time surveillance video,"
-    # CVPR 2011, 2011, pp. 3457-3464, doi: 10.1109/CVPR.2011.5995667."""
+def main(args):
+
+    logger.setLevel(args.logging_level)
 
     logger.debug('Startup')
-    logger.info(f'Loading video {video_path}')
-    video = cv2.VideoCapture(video_path)
+    logger.info(f'Arguments: {json.dumps(vars(args), indent=2)}')
+
+    logger.info(f'Loading video {args.video_path}')
+    assert os.path.isfile(args.video_path), f'Video {args.video_path} does not exist'
+    video = cv2.VideoCapture(args.video_path)
     major_ver = cv2.__version__.split('.')[0]  # noqa  # __version__ works, stopping
     assert float(major_ver) >= 3, 'video.get(cv2.CAP_PROP_FPS) needs opencv major version >= 3.'
     fps = video.get(cv2.CAP_PROP_FPS)
     width = video.get(cv2.CAP_PROP_FRAME_WIDTH)
     height = video.get(cv2.CAP_PROP_FRAME_HEIGHT)
     dt = 1000 / fps
-    logger.debug(f'fps {fps} width {width} height {height}')
+    logger.debug(f'Fps: {fps}, width: {width}, height: {height}')
     logger.debug('Video opened successfully')
 
     success = True
@@ -118,7 +122,7 @@ def main():
         frames.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         if len(frames) % 1_000 == 0:
             logger.debug(f'{len(frames)} frames read...')
-        if len(frames) >= frames_to_process:
+        if args.max_frames_to_process is not None and len(frames) >= args.max_frames_to_process:
             # Python can't seem to hold more than ~4000 frames in a list
             # loading and storing new frames slows down exponentially
             break
@@ -137,9 +141,9 @@ def main():
     logger.info('SocialDistanceEstimation processing complete')
 
     del frames  # Free up memory
-    # CV2 expects HxWxC
-    out = cv2.VideoWriter(filename=output_video_path, fourcc=cv2.VideoWriter_fourcc(*'DIVX'), fps=fps,
-                          frameSize=(int(0.5*height), int(0.5*width)), isColor=True)
+
+    out = cv2.VideoWriter(filename=args.output_video_path, fourcc=cv2.VideoWriter_fourcc(*'MJPG'), fps=fps,
+                          frameSize=(int(0.5 * width), int(0.5 * height)), isColor=True)
     for image in processed_frames:
         bgr_image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         out.write(bgr_image)
@@ -151,4 +155,29 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    import argparse
+
+    default_video_path = 'files/videos/OxfordTownCentreDataset.avi'
+    # "Oxford Town Centre Dataset" video - Source:
+    # https://drive.google.com/file/d/1UMIcffhxGw1aCAyztNWlslHHtayw9Fys/view
+    # from https://github.com/DrMahdiRezaei/DeepSOCIAL
+    # Dataset:
+    # """B. Benfold and I. Reid, "Stable multi-target tracking in real-time surveillance video,"
+    # CVPR 2011, 2011, pp. 3457-3464, doi: 10.1109/CVPR.2011.5995667."""
+
+    default_output_video_path = 'files/output.avi'
+
+    parser = argparse.ArgumentParser(description='Social distance estimation.')
+    parser.add_argument('--video_path', type=str, default=default_video_path,
+                        help='The path to the input video (default: %(default)s)')
+    parser.add_argument('--output_video_path', type=str, default=default_output_video_path,
+                        help='The path to the output video (default: %(default)s)')
+    parser.add_argument('--max_frames_to_process', type=int, default=400,  # TODO: default=None
+                        help='Max count of frames of the input video to process.'
+                             'If None, all frames are processed (default: %(default)s)')
+    parser.add_argument('--logging-level', choices=['DEBUG', 'INFO', 'ERROR'], default='DEBUG',  # TODO: default='ERROR'
+                        help='The logging level of the main script (default: %(default)s)')
+    parser.add_argument('--display-images', choices=[True, False], default=False,
+                        help='Whether to display processed images (default: %(default)s)')
+
+    main(args=parser.parse_args())
