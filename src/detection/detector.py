@@ -14,7 +14,7 @@ class Detector(object, metaclass=ABCMeta):
         :param use_gpu: If use_gpu is True, the detector will utilize the GPU if a GPU is available, otherwise
                 raise an Exception.
             If False, only CPU will be used.
-            If None, the default behaviour is chosen.
+            If None, the default behaviour is chosen: use GPU if possible, otherwise use CPU.
         """
         pass
 

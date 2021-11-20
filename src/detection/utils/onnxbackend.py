@@ -14,6 +14,10 @@ See: "https://onnxruntime.ai/", and
 
 
 class ONNXBackend:
+    # If `use_gpu` is None, it should conform to detector.py-s default behaviour:
+    # """
+    # If None, the default behaviour is chosen: use GPU if possible, otherwise use CPU.
+    # """
     use_gpu = None
 
     @staticmethod
