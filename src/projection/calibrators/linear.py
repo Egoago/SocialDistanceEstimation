@@ -1,17 +1,11 @@
 import numpy as np
 
-from src.projection.base import Intrinsics, Extrinsics, Camera
+from src.projection.base import Camera
 from src.projection.calibrator import ProjectionCalibrator
 from src.projection.projection import screen2ndc
 
 
 class LinearCalibrator(ProjectionCalibrator):
-    def __init__(self, intrinsics: Intrinsics, person_height: float = 1750):
-        self.person_height = person_height
-        self.camera = Camera(intrinsics=intrinsics,
-                             extrinsics=Extrinsics(distance=0,
-                                                   normal=np.array([0, 1, 0], dtype=float)))
-
     @staticmethod
     def __solve_homogeneous_ls__(mtx: np.ndarray) -> np.ndarray:
         eigen_pairs = np.linalg.eig(np.dot(mtx.T, mtx))
