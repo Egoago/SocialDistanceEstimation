@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 
 from src.projection.base import Camera, normalize, Extrinsics, Intrinsics
+from src.projection.calibrators.least_squares import LeastSquaresCalibrator
 from src.projection.calibrators.linear import LinearCalibrator
 from src.projection.calibrators.ransac import RansacCalibrator
 from src.projection.calibrators.test.drawing import draw_2d_points, draw_3d_points, draw_camera
@@ -100,10 +101,22 @@ class LinearTest(unittest.TestCase):
         self.assertGreater(success_count / test_count, 0.9)
 
 
-class RansacTest(LinearTest):
+class RansacLinearTest(LinearTest):
     def setUp(self) -> None:
         super().setUp()
-        self.calibrator = RansacCalibrator(self.camera.intrinsics, self.height)
+        self.calibrator = RansacCalibrator(LinearCalibrator(self.camera.intrinsics, self.height))
+
+
+class LeastSquaresTest(LinearTest):
+    def setUp(self) -> None:
+        super().setUp()
+        self.calibrator = LeastSquaresCalibrator(self.camera.intrinsics, self.height)
+
+
+class RansacLeastSquaresTest(LinearTest):
+    def setUp(self) -> None:
+        super().setUp()
+        self.calibrator = RansacCalibrator(LeastSquaresCalibrator(self.camera.intrinsics, self.height))
 
 
 if __name__ == '__main__':

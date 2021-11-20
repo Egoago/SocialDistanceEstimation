@@ -9,7 +9,7 @@ from src.projection.projection import back_project, project
 
 class RansacCalibrator(ProjectionCalibrator):
     class CalibrationWrapper:
-        calibrator: LinearCalibrator
+        calibrator: ProjectionCalibrator
 
         def residuals(self, pixels: np.ndarray) -> np.ndarray:
             pixels_b = pixels[:, -2:]
@@ -32,8 +32,8 @@ class RansacCalibrator(ProjectionCalibrator):
             self.calibrator.calibrate(pixels[:, :-2], pixels[:, -2:])
             return True
 
-    def __init__(self, intrinsics: Intrinsics, person_height: float = 1750):
-        self.CalibrationWrapper.calibrator = LinearCalibrator(intrinsics, person_height)
+    def __init__(self, calibrator: ProjectionCalibrator):
+        self.CalibrationWrapper.calibrator = calibrator
         self.camera = self.CalibrationWrapper.calibrator.camera
         self.inliers = np.empty(0, dtype=float)
 
