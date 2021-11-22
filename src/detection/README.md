@@ -39,6 +39,8 @@ or see [`example.py`](example.py).
 
 ## Dependencies
 
+# _TODO code dependencies_
+
 To use any detector, some files must be downloaded.
 
 The current detector, `YoloV4` requires three files:

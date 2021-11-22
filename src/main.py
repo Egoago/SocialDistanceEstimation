@@ -1,10 +1,12 @@
 import json
 import logging
 import os.path
-from typing import Tuple
+from typing import Tuple, List
 
 import cv2
 import numpy as np
+
+from tracking import Person
 
 logging.basicConfig(format="%(asctime)s %(levelname)-6s %(message)s",
                     level=logging.ERROR,
@@ -35,7 +37,7 @@ class SocialDistanceEstimator:
             # Draw a circle in 3D around at each person's feet
             'display_proximity': True,
             # Amount of bounding boxes to gather before calibration
-            'calibrate_at_bounding_boxes_count': 2000,
+            'calibrate_at_bounding_boxes_count': 4000,
         }
         self.p_bottom = np.zeros((self.settings['calibrate_at_bounding_boxes_count'], 2), dtype=float)
         self.p_top = np.zeros((self.settings['calibrate_at_bounding_boxes_count'], 2), dtype=float)
@@ -52,7 +54,7 @@ class SocialDistanceEstimator:
         im = self.__create_image(image=image, people=people)
         return im
 
-    def __create_image(self, image, people):
+    def __create_image(self, image: np.ndarray, people: List[Person]) -> np.ndarray:
         for person in people:
             if self.settings.get('display_bounding_boxes'):
                 top_left, bottom_right = person.bbox.corners()
@@ -80,7 +82,7 @@ class SocialDistanceEstimator:
         image_resized = cv2.resize(image, (960, 540))
         return image_resized
 
-    def __calibrate(self, people):
+    def __calibrate(self, people: List[Person]):
         import projection as proj
         for person in people:
             self.p_top[self.bounding_boxes_count] = proj.opencv2opengl(person.bbox.top(), self.img_size[1])
@@ -109,7 +111,7 @@ def main(args):
     fps = video.get(cv2.CAP_PROP_FPS)
     width = video.get(cv2.CAP_PROP_FRAME_WIDTH)
     height = video.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    dt = 1000 / fps
+    dt = 1 / fps  # dt is in seconds
     logger.debug(f'Fps: {fps}, width: {width}, height: {height}')
     logger.debug('Video opened successfully')
 
@@ -174,7 +176,7 @@ if __name__ == '__main__':
                         help='The path to the input video (default: %(default)s)')
     parser.add_argument('--output-video-path', type=str, default=default_output_video_path,
                         help='The path to the output video (default: %(default)s)')
-    parser.add_argument('--max-frames-to-process', type=int, default=400,  # TODO: default=None
+    parser.add_argument('--max-frames-to-process', type=int, default=800,  # TODO: default=None
                         help='Max count of frames of the input video to process.'
                              'If None, all frames are processed (default: %(default)s)')
     parser.add_argument('--logging-level', choices=['DEBUG', 'INFO', 'ERROR'], default='DEBUG',  # TODO: default='ERROR'

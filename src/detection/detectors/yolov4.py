@@ -36,7 +36,7 @@ class YoloV4(Detector):
     onnx_file_name = 'files/yolov4/yolov4.onnx'
 
     # Parameters
-    score_threshold = 0.05  # Default: 0.25
+    score_threshold = 0.1  # Default: 0.25
     iou_threshold = 0.3  # Default: 0.213
     valid_scale = (16, 208)  # Default: (0, 416 // 2)
 

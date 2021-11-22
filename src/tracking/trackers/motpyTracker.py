@@ -15,9 +15,12 @@ class MotpyTracker(Tracker):
             'q_var_pos': 100.0,  # process noise
             'r_var_pos': 0.1  # measurement noise
         }
-        self.tracker = MultiObjectTracker(dt/1000,
+        min_seconds_alive = 0.1
+        min_steps_alive = int(min_seconds_alive * 1/dt)
+        self.tracker = MultiObjectTracker(dt,
                                           model_spec=model_spec,
-                                          active_tracks_kwargs={'min_steps_alive': 5, 'max_staleness': 6},
+                                          active_tracks_kwargs={'min_steps_alive': min_steps_alive,
+                                                                'max_staleness': 6},
                                           tracker_kwargs={'max_staleness': 6},
                                           matching_fn_kwargs={'min_iou': 0.01})
 
