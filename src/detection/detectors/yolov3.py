@@ -19,7 +19,7 @@ class TinyYoloV3(Detector):
             object_detection_segmentation/tiny-yolov3/model/tiny-yolov3-11.onnx"
     """
 
-    input_shape = (1, 3, 416, 416)  # Attention! TinyYolo expects Batch x Channel x Height or Width x Width or Height
+    input_shape = (1, 3, 416, 416)  # Attention! TinyYolo expects Batch x Channel x Height x Width
     onnx_file_name = 'files/yolov3/tiny-yolov3-11.onnx'
 
     def __init__(self, use_gpu=None):
@@ -41,10 +41,15 @@ class TinyYoloV3(Detector):
     def __inference(self, image, shape) -> List[np.ndarray]:
         outputs = self.__sess.get_outputs()
         output_names = list(map(lambda out: out.name, outputs))
-        input_1_name = self.__sess.get_inputs()[0].name
-        input_2_name = self.__sess.get_inputs()[1].name
+        input_0_name = self.__sess.get_inputs()[0].name
+        input_1_name = self.__sess.get_inputs()[1].name
 
-        output = self.__sess.run(output_names, {input_1_name: image, input_2_name: shape})
+        # H x W x C -> C x H x W
+        image = image.transpose((2, 0, 1))
+        image = image.reshape((1, *image.shape))
+        image_shape = np.array([shape[1], shape[0]], dtype=np.float32).reshape(1, 2)
+
+        output = self.__sess.run(output_names, input_feed={input_0_name: image, input_1_name: image_shape})
         # print("Output shape:", list(map(lambda detection: detection.shape, output)))
 
         # Output has:
@@ -69,11 +74,20 @@ class TinyYoloV3(Detector):
             out_scores.append(scores[tuple(idx_)])
             idx_1 = (idx_[0], idx_[2])
             out_boxes.append(boxes[idx_1])
-        return []
+
+        info = zip(out_boxes, out_scores, out_classes)
+        bounding_boxes = []
+        for _box, _score, _cls in info:
+            bounding_boxes.append(BoundingBox(w=10, h=20))
+        if len(bounding_boxes) > 0:
+            pass  # for debugging
+        return bounding_boxes
 
     @classmethod
     def __preprocess(cls, image) -> Tuple[np.ndarray, OperationInfo]:
         # TODO check and fix
         warnings.warn("TinyYoloV3 has a weird input shape which does not conform to preprocess_image's expected params")
-        image, info = Preprocessor.preprocess_image(image, cls.input_shape)
+        image, info = Preprocessor.preprocess_image(image,
+                                                    (cls.input_shape[0], cls.input_shape[3],
+                                                     cls.input_shape[2], cls.input_shape[1]))
         return image, info
