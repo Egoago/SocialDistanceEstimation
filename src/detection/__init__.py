@@ -2,7 +2,7 @@ from .detector import Detector
 from .boundingbox import BoundingBox
 
 
-def create_detector(target_fps=None, use_gpu=None) -> Detector:
+def create_detector(target_fps=None, use_gpu=None, **kwargs) -> Detector:
     """
     Creates a detector.
 

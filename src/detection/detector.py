@@ -1,8 +1,11 @@
+import logging
 from abc import abstractmethod, ABCMeta
 from typing import List
 import numpy as np
 
 from .boundingbox import BoundingBox
+
+logger = logging.getLogger(__name__)
 
 
 class Detector(object, metaclass=ABCMeta):
@@ -16,6 +19,7 @@ class Detector(object, metaclass=ABCMeta):
             If False, only CPU will be used.
             If None, the default behaviour is chosen: use GPU if possible, otherwise use CPU.
         """
+        logger.debug(f'Creating {self.__class__.__name__}')
         pass
 
     @abstractmethod

@@ -1,27 +1,21 @@
+import json
+import logging
 from typing import Tuple, List
 
 import cv2
 import numpy as np
 
-from tracking import Person
+from src.detection import create_detector
+from src.tracking import Person, create_tracker, BBoxFilter
+from src.projection import create_calibrator, Intrinsics, opencv2opengl, project, opengl2opencv, back_project
+
+logger = logging.getLogger(__name__)
 
 
 class SocialDistanceEstimator:
-    def __init__(self, dt: float, img_size: Tuple[int, int]):
-        from detection import create_detector
-        self.detector = create_detector()
-
-        import tracking as tr
-        self.img_size = img_size
-        bbox_filter = tr.BBoxFilter(img_size=img_size,
-                                    max_aspect=0.8,
-                                    min_rel_height=0.1)
-        self.tracker = tr.create_tracker(dt, bbox_filter=bbox_filter)
-
-        from projection import create_calibrator, Intrinsics
-        self.calibrator = create_calibrator(Intrinsics(res=np.array(img_size)), method='least_squares')
-
+    def __init__(self, dt: float, img_size: Tuple[int, int], **kwargs):
         self.settings = {
+            'target_fps': None,  # TODO set value to desired
             # Draw a high-contrast disk at the center of the person's box
             'display_centers': False,
             # Draw a bounding box around the person
@@ -31,6 +25,20 @@ class SocialDistanceEstimator:
             # Amount of bounding boxes to gather before calibration
             'calibrate_at_bounding_boxes_count': 2000,
         }
+        self.settings.update(**kwargs)
+
+        logger.debug(f'Settings: {json.dumps(self.settings, indent=2)}')
+
+        self.detector = create_detector(**self.settings)
+
+        self.img_size = img_size
+        bbox_filter = BBoxFilter(img_size=img_size,
+                                 max_aspect=0.8,
+                                 min_rel_height=0.1)
+        self.tracker = create_tracker(dt, bbox_filter=bbox_filter)
+
+        self.calibrator = create_calibrator(Intrinsics(res=np.array(img_size)), method='least_squares')
+
         self.p_bottom = np.zeros((self.settings['calibrate_at_bounding_boxes_count'], 2), dtype=float)
         self.p_top = np.zeros((self.settings['calibrate_at_bounding_boxes_count'], 2), dtype=float)
         self.bounding_boxes_count = 0
@@ -53,15 +61,14 @@ class SocialDistanceEstimator:
                 cv2.rectangle(image, top_left, bottom_right, person.color, 2)
 
             if self.camera is not None and self.settings.get('display_proximity'):
-                import projection as proj
                 res = 20
                 radius = 1000
-                center = proj.back_project(np.array(proj.opencv2opengl(person.bbox.bottom(), self.img_size[1])),
-                                           self.camera)
+                center = back_project(np.array(opencv2opengl(person.bbox.bottom(), self.img_size[1])),
+                                      self.camera)
                 pixels = []
                 for i in np.linspace(0, 2 * np.pi.real, res):
                     point = center + np.array([np.cos(i), 0, np.sin(i)], dtype=float) * radius
-                    pixel = proj.opengl2opencv(tuple(proj.project(point, self.camera)[0]), self.img_size[1])
+                    pixel = opengl2opencv(tuple(project(point, self.camera)[0]), self.img_size[1])
                     pixels.append(pixel)
                 cv2.polylines(image, np.int32([pixels]), True, (255, 128, 0), 2)
 
@@ -75,10 +82,9 @@ class SocialDistanceEstimator:
         return image_resized
 
     def __calibrate(self, people: List[Person]):
-        import projection as proj
         for person in people:
-            self.p_top[self.bounding_boxes_count] = proj.opencv2opengl(person.bbox.top(), self.img_size[1])
-            self.p_bottom[self.bounding_boxes_count] = proj.opencv2opengl(person.bbox.bottom(), self.img_size[1])
+            self.p_top[self.bounding_boxes_count] = opencv2opengl(person.bbox.top(), self.img_size[1])
+            self.p_bottom[self.bounding_boxes_count] = opencv2opengl(person.bbox.bottom(), self.img_size[1])
             self.bounding_boxes_count += 1
             if self.bounding_boxes_count == self.settings['calibrate_at_bounding_boxes_count']:
                 # from src.projection.calibrators.test.drawing import draw_2d_points

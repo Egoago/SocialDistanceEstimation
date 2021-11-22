@@ -10,18 +10,20 @@ class MotpyTracker(Tracker):
     def __init__(self, dt, bbox_filter: BBoxFilter):
         super().__init__(bbox_filter)
         model_spec = {
-            'order_pos': 2, 'dim_pos': 2,  # position is a center in 2D space; under constant velocity model
-            'order_size': 0, 'dim_size': 2,  # bounding box is 2 dimensional; under constant velocity model
-            'q_var_pos': 100.0,  # process noise
-            'r_var_pos': 0.1  # measurement noise
+            'order_pos': 1, 'dim_pos': 2,  # position is a center in 2D space; under constant velocity model
+            'order_size': 1, 'dim_size': 2,  # bounding box is 2 dimensional; under constant velocity model
+            'q_var_pos': 1.0,  # process noise
+            'q_var_size': 1.0,  # process noise
+            'r_var_pos': 0.1,  # measurement noise
+            'r_var_size': 0.1  # measurement noise
         }
-        min_seconds_alive = 0.1
+        min_seconds_alive = 0.5
         min_steps_alive = int(min_seconds_alive * 1/dt)
         self.tracker = MultiObjectTracker(dt,
                                           model_spec=model_spec,
                                           active_tracks_kwargs={'min_steps_alive': min_steps_alive,
-                                                                'max_staleness': 6},
-                                          tracker_kwargs={'max_staleness': 6},
+                                                                'max_staleness': 2},
+                                          tracker_kwargs={'max_staleness': 2},
                                           matching_fn_kwargs={'min_iou': 0.01})
 
     def track(self, bboxes: List[BoundingBox]) -> List[Person]:

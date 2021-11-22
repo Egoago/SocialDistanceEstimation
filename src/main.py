@@ -4,17 +4,18 @@ import os.path
 
 import cv2
 
-from SocialDistanceEstimator import SocialDistanceEstimator
+from src.SocialDistanceEstimator import SocialDistanceEstimator
 
 logging.basicConfig(format="%(asctime)s %(levelname)-6s %(message)s",
                     level=logging.ERROR,
                     datefmt='%Y-%m-%d %H:%M:%S')
-logger = logging.getLogger(__name__)
+project_logger = logging.getLogger('src')
+logger = logging.getLogger('src.main')
 
 
 def main(args):
 
-    logger.setLevel(args.logging_level)
+    project_logger.setLevel(args.logging_level)
 
     logger.debug('Startup')
     logger.info(f'Arguments: {json.dumps(vars(args), indent=2)}')
@@ -99,5 +100,6 @@ if __name__ == '__main__':
                         help='The logging level of the main script (default: %(default)s)')
     parser.add_argument('--display-images', choices=[True, False], default=False,
                         help='Whether to display processed images (default: %(default)s)')
+    # TODO fps, other kwargs
 
     main(args=parser.parse_args())
