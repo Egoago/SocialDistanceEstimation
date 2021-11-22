@@ -1,14 +1,12 @@
-import warnings
 from typing import List, Tuple
 
 import numpy as np
 
 from ..detector import Detector
 from ..boundingbox import BoundingBox
-from ..utils import ONNXBackend, Preprocessor, OperationInfo
+from ..utils import ONNXBackend, Preprocessor, OperationInfo, Coco
 
 
-# TODO finish if needed
 class TinyYoloV3(Detector):
     """
     Based on commit 41ccf18 in
@@ -25,7 +23,6 @@ class TinyYoloV3(Detector):
     def __init__(self, use_gpu=None):
         super().__init__(use_gpu)
 
-        warnings.warn(f'{self.__class__.__name__} is still under development')
         ONNXBackend.use_gpu = use_gpu
         self.__sess = ONNXBackend.get_inference_session(self.onnx_file_name)
 
@@ -53,7 +50,6 @@ class TinyYoloV3(Detector):
         # print("Output shape:", list(map(lambda detection: detection.shape, output)))
 
         # Output has:
-        # ???
         # """
         # The model has 3 outputs.
         #   boxes: (1x'n_candidates'x4), the coordinates of all anchor boxes,
@@ -65,8 +61,8 @@ class TinyYoloV3(Detector):
 
     @classmethod
     def __postprocess(cls, outputs, info: OperationInfo) -> List[BoundingBox]:
-        # TODO implement correctly
-        warnings.warn('TinyYoloV3 postprocess is probably not implemented correctly')
+        scale, pad_each_x, pad_each_y = info
+
         boxes, scores, indices = outputs
         out_boxes, out_scores, out_classes = [], [], []
         for idx_ in indices[0]:
@@ -78,16 +74,28 @@ class TinyYoloV3(Detector):
         info = zip(out_boxes, out_scores, out_classes)
         bounding_boxes = []
         for _box, _score, _cls in info:
-            bounding_boxes.append(BoundingBox(w=10, h=20))
-        if len(bounding_boxes) > 0:
-            pass  # for debugging
+            # _box -> y1, x1, y2, x2
+            # _score -> float
+            # _cls -> int (COCO)
+
+            if Coco.class_names.get(_cls) != 'person':
+                # print(Coco.class_names.get(_cls))
+                continue
+            if _score < 0.1:
+                continue
+            y1, x1, y2, x2 = _box
+            y1 = (y1 - pad_each_y) / scale
+            y2 = (y2 - pad_each_y) / scale
+            x1 = (x1 - pad_each_x) / scale
+            x2 = (x2 - pad_each_x) / scale
+            w = x2-x1
+            h = y2-y1
+            bounding_boxes.append(BoundingBox(x=int(x1), y=int(y1), w=int(w), h=int(h)))
         return bounding_boxes
 
     @classmethod
     def __preprocess(cls, image) -> Tuple[np.ndarray, OperationInfo]:
-        # TODO check and fix
-        warnings.warn("TinyYoloV3 has a weird input shape which does not conform to preprocess_image's expected params")
         image, info = Preprocessor.preprocess_image(image,
-                                                    (cls.input_shape[0], cls.input_shape[3],
-                                                     cls.input_shape[2], cls.input_shape[1]))
+                                                    (cls.input_shape[0], cls.input_shape[2],
+                                                     cls.input_shape[3], cls.input_shape[1]))
         return image, info
