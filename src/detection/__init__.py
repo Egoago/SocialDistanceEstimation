@@ -15,10 +15,8 @@ def create_detector(target_fps=None, use_gpu=None, **kwargs) -> Detector:
 
     if target_fps is not None:
         if target_fps < 5:
-            # TODO possible force gpu on
             return YoloV4(use_gpu)
         if target_fps > 20:
-            # TODO possible force gpu off
             return TinyYoloV3(use_gpu)
 
     # If changed, update the README (especially the section "Dependencies")
