@@ -1,14 +1,15 @@
 import json
 import logging
+import warnings
 from typing import Tuple, List
 
 import cv2
 import numpy as np
-import distances.distance as d
 
 from src.detection import create_detector
 from src.tracking import Person, create_tracker, BBoxFilter
 from src.projection import create_calibrator, Intrinsics, opencv2opengl, project, opengl2opencv, back_project
+from src.distances import distance_calc
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 class SocialDistanceEstimator:
     def __init__(self, dt: float, img_size: Tuple[int, int], **kwargs):
         self.settings = {
-            'target_fps': None,  # TODO set value to desired
+            'target_fps': 30,  # TODO set value to desired
             # Draw a high-contrast disk at the center of the person's box
             'display_centers': False,
             # Draw a bounding box around the person
@@ -53,24 +54,26 @@ class SocialDistanceEstimator:
             self.__calibrate(people)
 
         im = self.__create_image(image=image, people=people)
+        # TODO assert returning image size is equal to image size expected by video writer in main
         return im
 
     def __create_image(self, image: np.ndarray, people: List[Person]) -> np.ndarray:
+        # TODO move to feedback package
         centerp = []
         bbs = []
         for person in people:
             if self.camera is not None:
                 center = back_project(np.array(opencv2opengl(person.bbox.bottom(), self.img_size[1])),
                                       self.camera)
-                centerp += center
-                bbs += person.bbox.coord()
+                centerp.append(center)
+                bbs.append(person.bbox)
 
             if self.camera is not None and self.settings.get('display_proximity'):
                 res = 20
                 radius = 1000
                 center = back_project(np.array(opencv2opengl(person.bbox.bottom(), self.img_size[1])),
                                       self.camera)
-                centerp += center
+                centerp.append(center)
                 pixels = []
                 for i in np.linspace(0, 2 * np.pi.real, res):
                     point = center + np.array([np.cos(i), 0, np.sin(i)], dtype=float) * radius
@@ -84,7 +87,8 @@ class SocialDistanceEstimator:
                 cv2.circle(image, center, 4, (255, 0, 255), 4)
 
         dist = 150
-        locations = d.distance_calc(centerp, dist)
+        locations = distance_calc(centerp, dist)
+        # TODO locations are broken, lines are not drawn
 
         risky = locations[0]
         critic = locations[1]
@@ -106,7 +110,11 @@ class SocialDistanceEstimator:
         for cp in centerp:
             cv2.circle(bew_img, (int(cp[0] * sfx), int(cp[1] * sfy)), 4, (255, 255, 255), -1)
 
-        image.resize(720, int(image.shape[1] * sf), 3)
+        if sf is None:
+            # TODO
+            warnings.warn('Handle sf is None, setting to 1')
+            sf = 1
+        image = cv2.resize(image, (int(image.shape[1] * sf), 720))
 
         for b in range(len(bbs)):
             people[b].color = green
@@ -133,9 +141,8 @@ class SocialDistanceEstimator:
         concats = cv2.vconcat([bew_img, text])
         img = cv2.hconcat([concats_2, concats])
 
-        # CV2 can display BGR images
-        #image_resized = cv2.resize(image, (960, 540))
-        return img
+        image_resized = cv2.resize(img, (int(0.5 * self.img_size[0]), int(0.5 * self.img_size[1])))
+        return image_resized
 
     def __calibrate(self, people: List[Person]):
         for person in people:
@@ -150,6 +157,11 @@ class SocialDistanceEstimator:
                 return
 
     def scaling(self, centerp, frame_width):
+        # TODO move to feedback / other package
+        if len(centerp) == 0:
+            # TODO
+            warnings.warn('CenterP length is 0, returning')
+            return None, None, None
         max_vals = np.amax(centerp, axis=0)
         main_factor = 720 / (frame_width)
         mini_factor_x = 360 / (max_vals[0] + 30)

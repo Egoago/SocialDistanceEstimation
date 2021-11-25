@@ -23,6 +23,3 @@ class BoundingBox(NamedTuple):
 
     def corners(self) -> Tuple[Tuple[int, int], Tuple[int, int]]:
         return (self.x, self.y), (self.x + self.w, self.y + self.h)
-
-    def coord(self):
-        return self.x, self.y, self.w, self.h
