@@ -2,6 +2,12 @@
 numpy
 opencv-python
 matplotlib
+scipy
+# Change working directory
+# Get video
+onnxruntime
+yolov4 if needed
+motpy
 
 # Detection, projection, and tracking - work in progress
 certifi==2021.5.30

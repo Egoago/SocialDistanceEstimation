@@ -1,4 +1,4 @@
 /.idea/
-*.onnx
 *.avi
 __pycache__/
+yolov4.onnx
