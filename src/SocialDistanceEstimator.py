@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from src.detection import create_detector
+from src.imageprocessing import get_camera_params
 from src.tracking import Person, create_tracker, BBoxFilter
 from src.projection import create_calibrator, Intrinsics, opencv2opengl, project, opengl2opencv, back_project
 
@@ -37,6 +38,7 @@ class SocialDistanceEstimator:
                                  min_rel_height=0.1)
         self.tracker = create_tracker(dt, bbox_filter=bbox_filter)
 
+        self.camera_params = get_camera_params('files/images_calibration','jpg',20,8,6)
         self.calibrator = create_calibrator(Intrinsics(res=np.array(img_size)), method='least_squares')
 
         self.p_bottom = np.zeros((self.settings['calibrate_at_bounding_boxes_count'], 2), dtype=float)
