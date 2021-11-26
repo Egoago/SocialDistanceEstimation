@@ -1,3 +1,4 @@
 /.idea/
-files/
+*.onnx
+*.avi
 __pycache__/

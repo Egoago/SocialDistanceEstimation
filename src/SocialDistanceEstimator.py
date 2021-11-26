@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class SocialDistanceEstimator:
     def __init__(self, dt: float, img_size: Tuple[int, int], **kwargs):
         self.settings = {
-            'target_fps': None,  # TODO set value to desired
+            'target_fps': 30,  # TODO set value to desired
             # Draw a high-contrast disk at the center of the person's box
             'display_centers': False,
             # Draw a bounding box around the person
