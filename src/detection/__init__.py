@@ -12,6 +12,7 @@ def create_detector(target_fps=None, use_gpu=None, **kwargs) -> Detector:
     """
     from .detectors import TinyYoloV3
     from .detectors import YoloV4
+    from .detectors import CompositeDetector
 
     if target_fps is not None:
         if target_fps < 5:
