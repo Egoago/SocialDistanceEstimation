@@ -1,26 +1,27 @@
+import logging
+
 import cv2
 import numpy as np
 import pathlib
-import glob
 import os
 
+logger = logging.getLogger(__name__)
+
+
 # https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html
-def get_camera_params(dir_path, image_format, square_size, width, height, file='files/images_calibration/calibration_save.npy'):
-    '''
+def get_camera_params(dir_path, image_format, square_size, width, height,
+                      file='files/images_calibration/calibration_save.npy'):
+    """
         square_size: in mm
-    '''
+    """
 
     data = None
 
     # if calibration file exist try to load
     if file is not None and os.path.isfile(file):
-        try:
-            data = load_calibration(file)
-            print('Loaded calibration from file.')
-        except(IOError):
-            pass
+        data = load_calibration(file)
 
-    # if calibration file didn't exist, run calibration process
+    # if calibration file didn't exist or loading fails, run calibration process
     if data is None:
         # data = ret, mtx, dist, rvecs, tvecs
         data = run_calibration(dir_path, image_format, square_size, width, height)
@@ -32,8 +33,13 @@ def get_camera_params(dir_path, image_format, square_size, width, height, file='
 
 
 def load_calibration(file):
-    data = np.load(file, allow_pickle=True)
-    return data
+    try:
+        data = np.load(file, allow_pickle=True)
+        logger.info(f'Loaded calibration from file {file}')
+        return data
+    except IOError as ie:
+        logger.error(f'Error loading calibration from file {file}: {repr(ie)}')
+    return None
 
 
 def run_calibration(dir_path, image_format, square_size, width, height):
@@ -69,7 +75,8 @@ def run_calibration(dir_path, image_format, square_size, width, height):
 
     # Calibrate camera
     ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
-    np.save('files/images_calibration/calibration_save.npy', np.asarray([ret, mtx, dist, rvecs, tvecs], dtype=object))
-    print('Calibration saved to file.')
-    # data1 = np.load('calibration_save.npy',allow_pickle=True)
+    fname = 'files/images_calibration/calibration_save.npy'
+    np.save(fname, np.asarray([ret, mtx, dist, rvecs, tvecs], dtype=object))
+    logger.debug(f'Calibrated with images from {dir_path}')
+    logger.debug(f'Calibration saved to file {fname}')
     return ret, mtx, dist, rvecs, tvecs
