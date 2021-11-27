@@ -2,14 +2,14 @@ import json
 import logging
 from typing import Tuple, List
 
-import cv2
 import numpy as np
 
 from src.detection import create_detector
+from src.imageprocessing import get_camera_params
 from src.tracking import Person, create_tracker, BBoxFilter
-from src.projection import create_calibrator, Intrinsics, opencv2opengl, project, opengl2opencv, back_project
+from src.projection import create_calibrator, Intrinsics, opencv2opengl
 
-from src.feedback import feedback as fb
+from src.feedback import feedback_image
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ class SocialDistanceEstimator:
                                  min_rel_height=0.1)
         self.tracker = create_tracker(dt, bbox_filter=bbox_filter)
 
+        self.camera_params = get_camera_params('files/images_calibration','jpg',20,8,6)
         self.calibrator = create_calibrator(Intrinsics(res=np.array(img_size)), method='least_squares')
 
         self.p_bottom = np.zeros((self.settings['calibrate_at_bounding_boxes_count'], 2), dtype=float)
@@ -54,10 +55,11 @@ class SocialDistanceEstimator:
             self.__calibrate(people)
 
         im = self.__create_image(image=image, people=people)
+        # TODO assert returning image size is equal to image size expected by video writer in main
         return im
 
     def __create_image(self, image: np.ndarray, people: List[Person]) -> np.ndarray:
-        return fb.feedback_image(self.camera, self.img_size, image, people, self.settings)
+        return feedback_image(self.camera, self.img_size, image, people, self.settings)
 
     def __calibrate(self, people: List[Person]):
         for person in people:
