@@ -34,6 +34,8 @@ def feedback_image(camera, img_size, image: np.ndarray, people: List[Person], se
 
     if camera is not None and len(centerp) != 0:
         scale = 10
+        coordx = 0.5 * img_size[0] * scale
+        coordy = -0.5 * img_size[1] * scale
 
         locations = calc.calc_dist(centerp, cps)
         risky_idx = locations[0]
@@ -50,14 +52,15 @@ def feedback_image(camera, img_size, image: np.ndarray, people: List[Person], se
             people[ci].color = red
         for r in risky:
             cv2.line(image, (int(r[0]), int(r[1])), (int(r[2]), int(r[3])), orange, 3)
-            cv2.line(bew_img, (int(r[4] / scale), int(r[5] / scale)), (int(r[6] / scale), int(r[7] / scale)),
-                     orange, 20)
+            cv2.line(bew_img, (int((r[5] + coordx) / scale), int((r[4] + coordy) / scale)),
+                     (int((r[7] + coordx) / scale), int((r[6] + coordy) / scale)), orange, 15)
         for c in critic:
             cv2.line(image, (int(c[0]), int(c[1])), (int(c[2]), int(c[3])), red, 3)
-            cv2.line(bew_img, (int(c[4] / scale), int(c[5] / scale)), (int(c[6] / scale), int(c[7] / scale)),
-                     red, 20)
+            cv2.line(bew_img, (int((c[5] + coordx) / scale), int((c[4] + coordy) / scale)),
+                     (int((c[7] + coordx) / scale), int((c[6] + coordy) / scale)), red, 15)
         for cp in centerp:
-            cv2.circle(bew_img, (int(cp[0] / scale), int(cp[1] / scale)), 30, (255, 255, 255), -1)
+            cv2.circle(bew_img, (int((cp[1] + coordx) / scale), int((cp[0] + coordy) / scale)), 20, (255, 255, 255),
+                       -1)
 
     for person in people:
         if settings.get('display_bounding_boxes'):
@@ -78,15 +81,14 @@ def feedback_image(camera, img_size, image: np.ndarray, people: List[Person], se
 
         if settings.get('display_centers'):
             center = person.bbox.x + person.bbox.w // 2, person.bbox.y + person.bbox.h // 2
-            cv2.circle(image, center, 6, (0, 255, 0), 8)
-            cv2.circle(image, center, 4, (255, 0, 255), 4)
+            cv2.circle(image, center, 6, person.color, 8)
 
     image_resized = cv2.resize(image, (960, 540))
-    bew_img_resized = cv2.resize(bew_img, (320, 180))
+    bew_img_resized = cv2.flip(cv2.resize(bew_img, (320, 180)), 0)
 
     # drawing the bew image on the frame
     row, col, ch = bew_img_resized.shape
-    overlay = cv2.addWeighted(image_resized[320:320+row, 0:0 + col], 0.5, bew_img_resized, 0.5, 0)
-    image_resized[320:320+row, 0:0 + col] = overlay
+    overlay = cv2.addWeighted(image_resized[328:328 + row, 32:32 + col], 0.5, bew_img_resized, 0.5, 0)
+    image_resized[328:328 + row, 32:32 + col] = overlay
 
     return image_resized
