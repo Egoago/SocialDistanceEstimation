@@ -71,4 +71,5 @@ class SocialDistanceEstimator:
                 # ax = draw_2d_points(self.p_bottom, c='darkgreen', last=False)
                 # draw_2d_points(self.p_top, c='darkred', ax=ax, res=self.img_size)
                 self.camera = self.calibrator.calibrate(p_top=self.p_top, p_bottom=self.p_bottom)
+                del self.p_top, self.p_bottom
                 return

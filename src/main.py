@@ -1,6 +1,7 @@
 import json
 import logging
 import os.path
+from tqdm import tqdm
 
 import cv2
 
@@ -29,50 +30,34 @@ def main(args):
     width = video.get(cv2.CAP_PROP_FRAME_WIDTH)
     height = video.get(cv2.CAP_PROP_FRAME_HEIGHT)
     dt = 1 / fps  # dt is in seconds
+    out = cv2.VideoWriter(filename=args.output_video_path, fourcc=cv2.VideoWriter_fourcc(*'MJPG'), fps=fps,
+                          frameSize=(int(0.5 * width), int(0.5 * height)), isColor=True)
     logger.debug(f'Fps: {fps}, width: {width}, height: {height}')
     logger.debug('Video opened successfully')
 
     success = True
     frames = []
-    while success:
-        success, image = video.read()
-        if not success:
-            raise ValueError(f'Error reading frame {len(frames) + 1}')
-        frames.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        if len(frames) % 1_000 == 0:
-            logger.debug(f'{len(frames)} frames read...')
-        if args.max_frames_to_process is not None and len(frames) >= args.max_frames_to_process:
-            # Python can't seem to hold more than ~4000 frames in a list
-            # loading and storing new frames slows down exponentially
-            break
-    video.release()
-    logger.info(f'{len(frames)} frames read successfully')
-
-    logger.info('Starting SocialDistanceEstimation')
     sde = SocialDistanceEstimator(dt=dt, img_size=(width, height))
-    logger.info('SocialDistanceEstimation setup complete')
-    processed_frames = []
-    for frame in frames:
-        im = sde(frame)
-        processed_frames.append(im)
-        if len(processed_frames) % 1_000 == 0:
-            logger.debug(f'{len(processed_frames)} frames processed...')
-    logger.info('SocialDistanceEstimation processing complete')
-
-    del frames  # Free up memory
-
-    out = cv2.VideoWriter(filename=args.output_video_path, fourcc=cv2.VideoWriter_fourcc(*'MJPG'), fps=fps,
-                          frameSize=(int(0.5 * width), int(0.5 * height)), isColor=True)
-    for image in processed_frames:
-        bgr_image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        out.write(bgr_image)
-        if args.display_images:
-            cv2.imshow('SocialDistanceEstimation', bgr_image)
-            cv2.waitKey(int(dt))
+    frame_count = video.get(cv2.CAP_PROP_FRAME_COUNT)
+    if args.max_frames_to_process is not None:
+        frame_count = min(frame_count, args.max_frames_to_process)
+    with tqdm(total=frame_count, desc='Processing frames') as pbar:
+        while success and frame_count > pbar.n:
+            success, frame = video.read()
+            if not success:
+                raise ValueError(f'Error reading frame {len(frames) + 1}')
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = sde(frame)
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            out.write(frame)
+            if args.display_images:
+                cv2.imshow('SocialDistanceEstimation', frame)
+                cv2.waitKey(int(dt))
+            pbar.update()
+    video.release()
     out.release()
     logger.info(f'Finished writing video to {args.output_video_path}')
     cv2.destroyAllWindows()
-    logger.debug('Exit')
 
 
 if __name__ == '__main__':
