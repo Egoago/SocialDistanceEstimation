@@ -10,7 +10,7 @@ from src.distances import calc_dist as calc
 
 def feedback_image(camera, img_size, image: np.ndarray, people: List[Person], settings):
     # birds-eye view image
-    bew_img = np.zeros((int(img_size[0]), int(img_size[1]), 3), np.uint8)
+    bew_img = np.zeros((int(img_size[1] * 1.5), int(img_size[0] * 1.5), 3), np.uint8)
 
     centerp = []  # 2d coords center points
     cps = []  # pixel coords center points
@@ -34,8 +34,8 @@ def feedback_image(camera, img_size, image: np.ndarray, people: List[Person], se
 
     if camera is not None and len(centerp) != 0:
         scale = 10
-        coordx = img_size[0]*2
-        coordy = -img_size[1]*2
+        coordx = 0.5 * img_size[0] * scale
+        coordy = -0.5 * img_size[1] * scale
 
         locations = calc.calc_dist(centerp, cps)
         risky_idx = locations[0]
@@ -81,15 +81,14 @@ def feedback_image(camera, img_size, image: np.ndarray, people: List[Person], se
 
         if settings.get('display_centers'):
             center = person.bbox.x + person.bbox.w // 2, person.bbox.y + person.bbox.h // 2
-            cv2.circle(image, center, 6, (0, 255, 0), 8)
-            cv2.circle(image, center, 4, (255, 0, 255), 4)
+            cv2.circle(image, center, 6, person.color, 8)
 
     image_resized = cv2.resize(image, (960, 540))
-    bew_img_resized = cv2.flip(cv2.resize(bew_img, (180, 320)), 0)
+    bew_img_resized = cv2.flip(cv2.resize(bew_img, (320, 180)), 0)
 
     # drawing the bew image on the frame
     row, col, ch = bew_img_resized.shape
-    overlay = cv2.addWeighted(image_resized[180:180 + row, 0:0 + col], 0.5, bew_img_resized, 0.5, 0)
-    image_resized[180:180 + row, 0:0 + col] = overlay
+    overlay = cv2.addWeighted(image_resized[328:328 + row, 32:32 + col], 0.5, bew_img_resized, 0.5, 0)
+    image_resized[328:328 + row, 32:32 + col] = overlay
 
     return image_resized
