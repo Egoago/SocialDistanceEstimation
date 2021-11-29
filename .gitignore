@@ -1,4 +1,6 @@
 /.idea/
 *.avi
+*.mp4
 __pycache__/
 yolov4.onnx
+/files/images_calibration/*.jpg

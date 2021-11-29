@@ -37,8 +37,8 @@ class YoloV4(Detector):
 
     # Parameters
     score_threshold = 0.1  # Default: 0.25
-    iou_threshold = 0.3  # Default: 0.213
-    valid_scale = (16, 208)  # Default: (0, 416 // 2)
+    iou_threshold = 0.213  # Default: 0.213
+    valid_scale = (8, 208)  # Default: (0, 416 // 2)
 
     def __init__(self, use_gpu=None):
         super().__init__(use_gpu)
