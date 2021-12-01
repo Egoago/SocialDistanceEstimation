@@ -22,8 +22,8 @@ class MotpyTracker(Tracker):
         self.tracker = MultiObjectTracker(dt,
                                           model_spec=model_spec,
                                           active_tracks_kwargs={'min_steps_alive': min_steps_alive,
-                                                                'max_staleness': 2},
-                                          tracker_kwargs={'max_staleness': 2},
+                                                                'max_staleness': 4},
+                                          tracker_kwargs={'max_staleness': 4},
                                           matching_fn_kwargs={'min_iou': 0.01})
 
     def track(self, bboxes: List[BoundingBox]) -> List[Person]:
