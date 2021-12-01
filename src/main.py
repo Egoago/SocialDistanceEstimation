@@ -100,9 +100,10 @@ if __name__ == '__main__':
     # Other videos: [
     # 'files/videos/20211129_123707.mp4',
     # 'files/videos/20211129_124248.mp4',
+    # 'files/videos/20211129_152215.mp4',
     # 'files/videos/20211129_153727.mp4']
 
-    default_video_path = 'files/videos/20211129_123707.mp4'
+    default_video_path = 'files/videos/OxfordTownCentreDataset.avi'
     # "Oxford Town Centre Dataset" video - Source:
     # https://drive.google.com/file/d/1UMIcffhxGw1aCAyztNWlslHHtayw9Fys/view
     # from https://github.com/DrMahdiRezaei/DeepSOCIAL
