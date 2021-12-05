@@ -1,3 +1,4 @@
+import logging
 import os
 import warnings
 
@@ -11,6 +12,8 @@ ONNXBackend currently only supports CPU or CUDA acceleration.
 See: "https://onnxruntime.ai/", and
     "https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements"
 """
+
+logger = logging.getLogger(__name__)
 
 
 class ONNXBackend:
@@ -33,11 +36,13 @@ class ONNXBackend:
             # To use a gpu, onnxruntime-gpu has to be installed
             assert 'GPU' == ort.get_device(), 'GPU is not available or incorrect onnxruntime is used'
             sess.set_providers(['CUDAExecutionProvider'])
+            logger.debug('Using GPU')
             assert 'GPU' == ort.get_device()
         else:
             if 'GPU' == ort.get_device():
                 # onnxruntime-gpu is installed
                 warnings.warn('GPU is available, but is not utilized')
             sess.set_providers(['CPUExecutionProvider'])
+            logger.debug('Not using GPU')
 
         return sess
