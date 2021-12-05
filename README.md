@@ -1,6 +1,7 @@
 # SocialDistanceEstimation
 
-_TODO: description_
+Detects people on the input video, calculates their distances
+and gives feedback about their social distancing.
 
 ## Installation
 
@@ -31,4 +32,6 @@ _TODO: description_
 
 ## Usage
 
-_TODO: how to use_
+`python -m src.main`
+
+Run `python -m src.main --help` from `SocialDistanceEstimation` to see command line arguments.
