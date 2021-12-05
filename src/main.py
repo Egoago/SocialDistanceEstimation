@@ -34,8 +34,8 @@ def main(args):
     left_factor = 1
     top_factor = 1
     if args.focus != '':
-        zoom = 1.5
-        # TODO check center of attention with zoom != 2
+        # Zoom might only be correct if zoom == 2.0
+        zoom = 2.0
         center_of_attention = dict(top=(1, 0), bottom=(1, 2), left=(0, 1), right=(2, 1), bottomright=(2, 2))
         left_factor, top_factor = center_of_attention[args.focus]
 
@@ -53,7 +53,7 @@ def main(args):
 
     success = True
     frames = []
-    sde = SocialDistanceEstimator(dt=dt, input_shape=(width, height), output_shape=out_frame_shape)
+    sde = SocialDistanceEstimator(dt=dt, input_shape=(width, height), output_shape=out_frame_shape, **vars(args))
     frame_count = video.get(cv2.CAP_PROP_FRAME_COUNT)
     if args.max_frames_to_process is not None:
         frame_count = min(frame_count, args.max_frames_to_process)
@@ -118,17 +118,18 @@ if __name__ == '__main__':
                         help='The path to the input video (default: %(default)s)')
     parser.add_argument('--output-video-path', type=str, default=default_output_video_path,
                         help='The path to the output video (default: %(default)s)')
-    parser.add_argument('--max-frames-to-process', type=int, default=2000,  # TODO: default=None
+    parser.add_argument('--max-frames-to-process', type=int, default=None,
                         help='Max count of frames of the input video to process.'
                              'If None, all frames are processed (default: %(default)s)')
     parser.add_argument('--skip-frames', type=int, default=None,
                         help='Amount of frames to skip from the start of the input video (default: %(default)s)')
-    parser.add_argument('--logging-level', choices=['DEBUG', 'INFO', 'ERROR'], default='DEBUG',  # TODO: default='ERROR'
+    parser.add_argument('--logging-level', choices=['DEBUG', 'INFO', 'ERROR'], default='ERROR',
                         help='The logging level of the main script (default: %(default)s)')
     parser.add_argument('--display-images', choices=[True, False], default=False,
                         help='Whether to display processed images (default: %(default)s)')
     parser.add_argument('--focus', choices=['top', 'bottom', 'left', 'right', 'bottomright', ''], default='',
                         help='Whether to focus on a particular section of the input (default: %(default)s)')
-    # TODO fps, other kwargs
+    parser.add_argument('--target-fps', type=float, default=None,
+                        help='The desired FPS value for processing (default: %(default)s)')
 
     main(args=parser.parse_args())

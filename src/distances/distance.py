@@ -11,7 +11,6 @@ def distance_calc(centerp, dist) -> Tuple[List[List], List[List], List[int]]:
     # távolságok
 
     if len(centerp) == 0:
-        # TODO
         warnings.warn('CenterP length is 0, returning')
         return [], [], []
     distances = ssd.squareform(ssd.pdist(centerp, 'euclidean'))
